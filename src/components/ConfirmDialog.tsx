@@ -8,7 +8,7 @@ export function ConfirmDialog({ open, title = 'Tasdiqlash', message, onConfirm, 
         <AlertTriangle className="shrink-0" />
         <p className="text-sm">{message}</p>
       </div>
-      <div className="mt-5 flex justify-end gap-3">
+      <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
         <button className="btn-secondary" onClick={onClose}>Bekor qilish</button>
         <button className="btn-danger" onClick={onConfirm}>Ha, o‘chirish</button>
       </div>
