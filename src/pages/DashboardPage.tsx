@@ -63,7 +63,7 @@ export function DashboardPage() {
         <DateRangeFilter value={range} onChange={setRange} />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
         <KpiCard title="Bugungi savdo" value={formatMoney(todaySales)} icon={ShoppingBag} tone="blue" />
         <KpiCard title="Real pul kirimi" value={formatMoney(metrics.realIncome)} icon={ArrowUpRight} tone="green" />
         <KpiCard title="Chiqim" value={formatMoney(metrics.expense)} icon={ArrowDownRight} tone="red" />

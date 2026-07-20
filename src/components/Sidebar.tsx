@@ -21,18 +21,18 @@ export function Sidebar({ mobileOpen, onMobileClose, collapsed, onCollapse }: { 
   return (
     <>
       {mobileOpen && <button aria-label="Sidebarni yopish" className="fixed inset-0 z-40 bg-slate-950/50 lg:hidden" onClick={onMobileClose} />}
-      <aside className={`fixed inset-y-0 left-0 z-50 flex w-72 max-w-[86vw] flex-col border-r bg-white transition-all dark:bg-slate-900 ${collapsed ? 'lg:w-20' : 'lg:w-72'} ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r bg-white transition-all dark:bg-slate-900 ${collapsed ? 'w-20' : 'w-72'} ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <div className="flex h-20 items-center justify-between border-b px-5">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-blue-600 text-lg font-black text-white">T</div>
-            <div className={`min-w-0 ${collapsed ? 'lg:hidden' : ''}`}><p className="truncate font-bold">{data.settings.dokonNomi}</p><p className="truncate text-xs text-slate-500">Parfyum boshqaruvi</p></div>
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-blue-600 text-lg font-black text-white">A</div>
+            {!collapsed && <div className="min-w-0"><p className="truncate font-bold">{data.settings.dokonNomi}</p><p className="text-xs text-slate-500">Parfyum boshqaruvi</p></div>}
           </div>
           <button className="rounded-xl p-2 hover:bg-slate-100 lg:hidden dark:hover:bg-slate-800" onClick={onMobileClose}><X size={20} /></button>
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
           {items.map(({ label, path, icon: Icon }) => (
-            <NavLink key={path} to={path} end={path === '/'} onClick={onMobileClose} title={collapsed ? label : undefined} className={({ isActive }) => `flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'} ${collapsed ? 'lg:justify-center' : ''}`}>
-              <Icon className="shrink-0" size={20} /><span className={`min-w-0 truncate ${collapsed ? 'lg:hidden' : ''}`}>{label}</span>
+            <NavLink key={path} to={path} end={path === '/'} onClick={onMobileClose} title={collapsed ? label : undefined} className={({ isActive }) => `flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'} ${collapsed ? 'justify-center' : ''}`}>
+              <Icon size={20} />{!collapsed && <span>{label}</span>}
             </NavLink>
           ))}
         </nav>

@@ -14,11 +14,11 @@ export function AdminLayout() {
   }, [data.settings.darkMode]);
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <Sidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} collapsed={collapsed} onCollapse={() => setCollapsed((value) => !value)} />
-      <div className={`min-h-screen min-w-0 transition-all ${collapsed ? 'lg:pl-20' : 'lg:pl-72'}`}>
+      <div className={`min-h-screen transition-all ${collapsed ? 'lg:pl-20' : 'lg:pl-72'}`}>
         <Header onMenu={() => setMobileOpen(true)} />
-        <main className="min-w-0 max-w-full p-3 sm:p-6 lg:p-8"><div className="min-w-0 max-w-full"><Outlet /></div></main>
+        <main className="p-4 sm:p-6 lg:p-8"><Outlet /></main>
       </div>
     </div>
   );

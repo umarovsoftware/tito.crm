@@ -170,7 +170,7 @@ export function SalesPage() {
         title="Sotuvlar"
         description="Doimiy mijozlar va tasodifiy xaridorlar savdosini alohida boshqaring."
         actions={(
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+          <div className="flex flex-wrap gap-2">
             <button className="btn-secondary" onClick={() => startAdd('Tasodifiy xaridor')}>
               <ShoppingBag size={18} /> Tasodifiy sotuv
             </button>
