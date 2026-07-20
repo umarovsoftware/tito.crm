@@ -47,19 +47,19 @@ export function PerfumesPage() {
   const rows = filtered.slice((page - 1) * pageSize, page * pageSize);
   const setSorting = (key: keyof Perfume) => setSort((current) => ({ key, dir: current.key === key && current.dir === 'asc' ? 'desc' : 'asc' }));
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!form.firmaNomi.trim() || !form.tovarNomi.trim() || !form.barcode.trim()) return showToast('Majburiy maydonlarni to‘ldiring.', 'warning');
     if (form.kelishNarxi <= 0 || form.sotuvNarxi <= 0 || form.sotuvNarxi < form.kelishNarxi) return showToast('Narxlarni to‘g‘ri kiriting.', 'warning');
-    const result = savePerfume(form);
+    const result = await savePerfume(form);
     if (!result.ok) return showToast(result.message, 'error');
     showToast(form.id ? 'Parfyum yangilandi.' : 'Parfyum qo‘shildi.'); setOpen(false); setForm(emptyForm);
   };
 
   const edit = (item: Perfume) => { const { createdAt: _, ...rest } = item; setForm(rest); setOpen(true); };
-  const remove = () => {
+  const remove = async () => {
     if (!deleteId) return;
-    const result = deletePerfume(deleteId);
+    const result = await deletePerfume(deleteId);
     showToast(result.ok ? 'Parfyum o‘chirildi.' : result.message, result.ok ? 'success' : 'error'); setDeleteId(null);
   };
 

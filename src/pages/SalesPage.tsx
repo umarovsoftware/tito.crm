@@ -123,7 +123,7 @@ export function SalesPage() {
     setOpen(true);
   };
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
 
     if (!form.perfumeId || form.miqdor <= 0 || form.sotuvNarxi <= 0) {
@@ -143,7 +143,7 @@ export function SalesPage() {
       return;
     }
 
-    const result = saveSale(form);
+    const result = await saveSale(form);
     if (!result.ok) {
       showToast(result.message, 'error');
       return;
@@ -157,9 +157,9 @@ export function SalesPage() {
     setForm(createInitial());
   };
 
-  const remove = () => {
+  const remove = async () => {
     if (!deleteId) return;
-    const result = deleteSale(deleteId);
+    const result = await deleteSale(deleteId);
     showToast(result.ok ? 'Sotuv o‘chirildi, qoldiq tiklandi.' : result.message, result.ok ? 'success' : 'error');
     setDeleteId(null);
   };

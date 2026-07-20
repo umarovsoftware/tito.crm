@@ -26,10 +26,10 @@ export function StockInPage() {
   }).sort((a,b) => b.sana.localeCompare(a.sana)), [data, query]);
 
   const product = data.perfumes.find((item) => item.id === form.perfumeId);
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!form.perfumeId || form.miqdor <= 0 || form.kelishNarxi <= 0 || !form.yetkazibBeruvchi.trim()) return showToast('Barcha majburiy maydonlarni to‘g‘ri kiriting.', 'warning');
-    const result = saveStockIn(form);
+    const result = await saveStockIn(form);
     if (!result.ok) return showToast(result.message, 'error');
     showToast(form.id ? 'Tovar kirimi yangilandi.' : 'Tovar kirimi saqlandi. Qoldiq oshirildi.'); setOpen(false); setForm(initial);
   };

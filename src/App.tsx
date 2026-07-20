@@ -1,6 +1,8 @@
 import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AdminLayout } from './layouts/AdminLayout';
+import { LoginPage } from './pages/LoginPage';
+import { useAuth } from './auth/AuthContext';
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const PerfumesPage = lazy(() => import('./pages/PerfumesPage').then((m) => ({ default: m.PerfumesPage })));
@@ -20,6 +22,8 @@ function Loader() {
 }
 
 export default function App() {
+  const { user } = useAuth();
+  if (!user) return <Routes><Route path="*" element={<LoginPage />} /></Routes>;
   return (
     <Suspense fallback={<Loader />}>
       <Routes>

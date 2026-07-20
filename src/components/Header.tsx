@@ -1,10 +1,12 @@
-import { Menu, Moon, Search, Sun } from 'lucide-react';
+import { LogOut, Menu, Moon, Search, Sun } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useAppStore } from '../store/AppStore';
+import { useAuth } from '../auth/AuthContext';
 
 export function Header({ onMenu }: { onMenu: () => void }) {
   const { data, updateSettings } = useAppStore();
+  const { user, logout } = useAuth();
   const [query, setQuery] = useState('');
   const navigate = useNavigate();
   const submit = (event: React.FormEvent) => { event.preventDefault(); navigate(`/parfyumlar?q=${encodeURIComponent(query)}`); };
@@ -17,8 +19,9 @@ export function Header({ onMenu }: { onMenu: () => void }) {
       </form>
       <div className="ml-auto flex min-w-0 items-center gap-2">
         <button onClick={() => updateSettings({ ...data.settings, darkMode: !data.settings.darkMode })} className="shrink-0 rounded-xl border p-2.5 hover:bg-slate-50 dark:hover:bg-slate-800" title="Tungi rejim">{data.settings.darkMode ? <Sun size={20} /> : <Moon size={20} />}</button>
-        <div className="hidden text-right sm:block"><p className="text-sm font-semibold">Administrator</p><p className="text-xs text-slate-500">Boshqaruv paneli</p></div>
-        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-blue-100 text-sm font-bold text-blue-700 sm:h-10 sm:w-10 sm:text-base dark:bg-blue-950 dark:text-blue-300">AD</div>
+        <div className="hidden text-right sm:block"><p className="text-sm font-semibold">{user?.first_name || user?.username || 'Administrator'}</p><p className="text-xs text-slate-500">Boshqaruv paneli</p></div>
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-blue-100 text-sm font-bold text-blue-700 sm:h-10 sm:w-10 sm:text-base dark:bg-blue-950 dark:text-blue-300">{(user?.username?.slice(0, 2) || 'AD').toUpperCase()}</div>
+        <button onClick={() => void logout()} className="shrink-0 rounded-xl border p-2.5 text-red-600 hover:bg-red-50" title="Chiqish"><LogOut size={18} /></button>
       </div>
     </header>
   );
