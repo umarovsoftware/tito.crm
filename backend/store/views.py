@@ -8,7 +8,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import Customer, CustomerDebt, CustomerDebtEntry, Expense, Income, Payable, PayableEntry, Product, Sale, ShopSettings, StockReceipt
+from .models import Customer, CustomerDebt, CustomerDebtEntry, Expense, Income, Payable, PayableEntry, Product, Sale, SaleItem, ShopSettings, StockReceipt
 from .serializers import (
     CustomerDebtSerializer, CustomerSerializer, ExpenseSerializer, IncomeSerializer,
     PayableSerializer, PaymentSerializer, ProductSerializer, SaleSerializer,
@@ -89,16 +89,17 @@ class StockReceiptViewSet(viewsets.ModelViewSet):
 
 
 class SaleViewSet(viewsets.ModelViewSet):
-    queryset = Sale.objects.select_related("product", "customer")
+    queryset = Sale.objects.select_related("customer").prefetch_related("items__product")
     serializer_class = SaleSerializer
     http_method_names = ["get", "post", "put", "patch", "delete", "head", "options"]
-    search_fields = ("code", "guest_code", "customer__full_name", "product__name")
+    search_fields = ("code", "guest_code", "customer__full_name", "items__product__name")
 
     @transaction.atomic
     def perform_destroy(self, instance):
-        product = Product.objects.select_for_update().get(pk=instance.product_id)
-        product.quantity += instance.quantity
-        product.save(update_fields=["quantity", "updated_at"])
+        for item in instance.items.select_related("product").all():
+            product = Product.objects.select_for_update().get(pk=item.product_id)
+            product.quantity += item.quantity
+            product.save(update_fields=["quantity", "updated_at"])
         Income.objects.filter(source=f"sale:{instance.id}").delete()
         try:
             entry = instance.debt_entry

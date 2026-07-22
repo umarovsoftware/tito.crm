@@ -90,6 +90,23 @@ class Sale(TimeStampedModel):
 
     @property
     def total(self):
+        items = list(self.items.all()) if hasattr(self, "items") else []
+        return sum((item.total for item in items), start=Decimal("0")) if items else self.quantity * self.unit_price
+
+
+class SaleItem(TimeStampedModel):
+    """A product line within a single customer purchase."""
+    sale = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name="items")
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name="sale_items")
+    quantity = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    unit_price = models.DecimalField(max_digits=14, decimal_places=2, validators=[MinValueValidator(Decimal("0"))])
+
+    class Meta:
+        ordering = ["created_at"]
+        constraints = [models.UniqueConstraint(fields=["sale", "product"], name="unique_product_per_sale")]
+
+    @property
+    def total(self):
         return self.quantity * self.unit_price
 
 

@@ -21,8 +21,10 @@ export const grossProfitForSales = (sales: Sale[], perfumes: Perfume[], start: s
   sales
     .filter((sale) => isInRange(sale.sana, start, end))
     .reduce((sum, sale) => {
-      const perfume = perfumes.find((item) => item.id === sale.perfumeId);
-      return sum + sale.miqdor * (sale.sotuvNarxi - (perfume?.kelishNarxi ?? 0));
+      return sum + sale.items.reduce((lineTotal, line) => {
+        const perfume = perfumes.find((item) => item.id === line.perfumeId);
+        return lineTotal + line.miqdor * (line.sotuvNarxi - (perfume?.kelishNarxi ?? 0));
+      }, 0);
     }, 0);
 
 export const operationTotals = (incomes: Income[], expenses: Expense[], start: string, end: string) => ({

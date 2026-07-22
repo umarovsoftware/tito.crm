@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
-from .models import Customer, CustomerDebt, CustomerDebtEntry, Expense, Income, Payable, PayableEntry, Product, Sale, ShopSettings, StockReceipt
+from .models import Customer, CustomerDebt, CustomerDebtEntry, Expense, Income, Payable, PayableEntry, Product, Sale, SaleItem, ShopSettings, StockReceipt
 
 
 class FrontendChoiceField(serializers.ChoiceField):
@@ -100,7 +100,7 @@ class StockReceiptSerializer(serializers.ModelSerializer):
         return receipt
 
 
-class SaleSerializer(serializers.ModelSerializer):
+class LegacySaleSerializer(serializers.ModelSerializer):
     sotuvKodi = serializers.CharField(source="code", read_only=True)
     saleTuri = FrontendChoiceField(source="sale_type", choices=SALE_TYPE_CHOICES)
     perfumeId = serializers.PrimaryKeyRelatedField(source="product", queryset=Product.objects.all())
@@ -191,6 +191,121 @@ class SaleSerializer(serializers.ModelSerializer):
         else:
             buyer = sale.customer.full_name if sale.customer else sale.guest_code
             Income.objects.create(category="Sotuv", amount=sale.total, date=sale.sold_on, note=f"{sale.code} · {buyer} · {product}", source=f"sale:{sale.id}")
+        return sale
+
+
+class SaleItemSerializer(serializers.ModelSerializer):
+    perfumeId = serializers.PrimaryKeyRelatedField(source="product", queryset=Product.objects.all())
+    miqdor = serializers.IntegerField(source="quantity", min_value=1)
+    sotuvNarxi = serializers.DecimalField(source="unit_price", max_digits=14, decimal_places=2, min_value=Decimal("0"))
+    jamiSumma = serializers.DecimalField(source="total", max_digits=14, decimal_places=2, read_only=True)
+
+    class Meta:
+        model = SaleItem
+        fields = ("id", "perfumeId", "miqdor", "sotuvNarxi", "jamiSumma")
+        read_only_fields = ("id", "jamiSumma")
+
+
+class SaleSerializer(serializers.ModelSerializer):
+    sotuvKodi = serializers.CharField(source="code", read_only=True)
+    saleTuri = FrontendChoiceField(source="sale_type", choices=SALE_TYPE_CHOICES)
+    customerId = serializers.PrimaryKeyRelatedField(source="customer", queryset=Customer.objects.all(), required=False, allow_null=True)
+    xaridorKodi = serializers.CharField(source="guest_code", read_only=True)
+    items = SaleItemSerializer(many=True)
+    jamiSumma = serializers.DecimalField(source="total", max_digits=14, decimal_places=2, read_only=True)
+    tolovTuri = FrontendChoiceField(source="payment_type", choices=PAYMENT_CHOICES)
+    ulgurjiSavdo = serializers.BooleanField(source="wholesale", required=False)
+    yetkazibBerish = serializers.BooleanField(source="delivery", required=False)
+    yetkazibBerishManzili = serializers.CharField(source="delivery_address", required=False, allow_blank=True)
+    sana = serializers.DateField(source="sold_on")
+    createdAt = serializers.DateTimeField(source="created_at", read_only=True)
+
+    class Meta:
+        model = Sale
+        fields = ("id", "sotuvKodi", "saleTuri", "customerId", "xaridorKodi", "items", "jamiSumma", "tolovTuri", "ulgurjiSavdo", "yetkazibBerish", "yetkazibBerishManzili", "sana", "createdAt")
+        read_only_fields = ("id", "sotuvKodi", "xaridorKodi", "jamiSumma", "createdAt")
+
+    def validate(self, attrs):
+        sale_type = attrs.get("sale_type", getattr(self.instance, "sale_type", None))
+        customer = attrs.get("customer", getattr(self.instance, "customer", None))
+        payment_type = attrs.get("payment_type", getattr(self.instance, "payment_type", None))
+        delivery = attrs.get("delivery", getattr(self.instance, "delivery", False))
+        address = attrs.get("delivery_address", getattr(self.instance, "delivery_address", ""))
+        items = attrs.get("items")
+        if not items:
+            raise serializers.ValidationError({"items": "Kamida bitta mahsulot qatori qo'shing."})
+        product_ids = [item["product"].id for item in items]
+        if len(product_ids) != len(set(product_ids)):
+            raise serializers.ValidationError({"items": "Bir mahsulotni faqat bitta qatorda kiriting."})
+        if sale_type == Sale.SaleType.REGULAR and not customer:
+            raise serializers.ValidationError({"customerId": "Doimiy mijoz uchun mijoz tanlanishi kerak."})
+        if sale_type == Sale.SaleType.GUEST and payment_type == Sale.PaymentType.DEBT:
+            raise serializers.ValidationError({"tolovTuri": "Tasodifiy xaridorga qarzga sotuv mumkin emas."})
+        if delivery and not address.strip():
+            raise serializers.ValidationError({"yetkazibBerishManzili": "Yetkazib berish manzilini kiriting."})
+        return attrs
+
+    def _reserve_items(self, items):
+        for item in items:
+            product = Product.objects.select_for_update().get(pk=item["product"].pk)
+            if item["quantity"] > product.quantity:
+                raise serializers.ValidationError({"items": f"{product}: qoldiq yetarli emas. Mavjud: {product.quantity} dona."})
+            product.quantity -= item["quantity"]
+            product.save(update_fields=["quantity", "updated_at"])
+
+    def _record_finance(self, sale):
+        item_names = ", ".join(str(item.product) for item in sale.items.select_related("product").all())
+        if sale.payment_type == Sale.PaymentType.DEBT:
+            debt, _ = CustomerDebt.objects.select_for_update().get_or_create(customer=sale.customer, defaults={"total_amount": 0, "paid_amount": 0, "due_date": sale.sold_on + timedelta(days=30)})
+            debt.total_amount += sale.total
+            debt.due_date = sale.sold_on + timedelta(days=30)
+            debt.save(update_fields=["total_amount", "due_date", "updated_at"])
+            CustomerDebtEntry.objects.create(debt=debt, entry_type="charge", amount=sale.total, date=sale.sold_on, note=item_names, sale=sale)
+        else:
+            buyer = sale.customer.full_name if sale.customer else sale.guest_code
+            Income.objects.create(category="Sotuv", amount=sale.total, date=sale.sold_on, note=f"{sale.code} · {buyer} · {item_names}", source=f"sale:{sale.id}")
+
+    @transaction.atomic
+    def create(self, validated_data):
+        items = validated_data.pop("items")
+        sold_on = validated_data["sold_on"]
+        token = timezone.now().strftime("%H%M%S%f")[-8:]
+        first = items[0]
+        validated_data.update(code=f"STV-{sold_on:%Y%m%d}-{token}", product=first["product"], quantity=first["quantity"], unit_price=first["unit_price"])
+        if validated_data["sale_type"] == Sale.SaleType.GUEST:
+            validated_data.update(customer=None, guest_code=f"TX-{sold_on:%Y%m%d}-{token}", wholesale=False, delivery=False, delivery_address="")
+        self._reserve_items(items)
+        sale = Sale.objects.create(**validated_data)
+        SaleItem.objects.bulk_create([SaleItem(sale=sale, **item) for item in items])
+        self._record_finance(sale)
+        return sale
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        items = validated_data.pop("items")
+        for old_item in instance.items.select_related("product").all():
+            product = Product.objects.select_for_update().get(pk=old_item.product_id)
+            product.quantity += old_item.quantity
+            product.save(update_fields=["quantity", "updated_at"])
+        Income.objects.filter(source=f"sale:{instance.id}").delete()
+        try:
+            old_entry = instance.debt_entry
+        except CustomerDebtEntry.DoesNotExist:
+            old_entry = None
+        if old_entry:
+            debt = CustomerDebt.objects.select_for_update().get(pk=old_entry.debt_id)
+            debt.total_amount -= old_entry.amount
+            debt.save(update_fields=["total_amount", "updated_at"])
+            old_entry.delete()
+        first = items[0]
+        validated_data.update(product=first["product"], quantity=first["quantity"], unit_price=first["unit_price"])
+        if validated_data.get("sale_type", instance.sale_type) == Sale.SaleType.GUEST:
+            validated_data.update(customer=None, wholesale=False, delivery=False, delivery_address="")
+        self._reserve_items(items)
+        instance.items.all().delete()
+        sale = super().update(instance, validated_data)
+        SaleItem.objects.bulk_create([SaleItem(sale=sale, **item) for item in items])
+        self._record_finance(sale)
         return sale
 
 

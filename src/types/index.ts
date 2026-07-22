@@ -38,15 +38,22 @@ export interface StockIn {
   createdAt: string;
 }
 
+export interface SaleItem {
+  id?: string;
+  perfumeId: string;
+  miqdor: number;
+  sotuvNarxi: number;
+  jamiSumma?: number;
+}
+
 export interface Sale {
   id: string;
   sotuvKodi: string;
   saleTuri: SaleType;
-  perfumeId: string;
   customerId: string;
   xaridorKodi: string;
-  miqdor: number;
-  sotuvNarxi: number;
+  items: SaleItem[];
+  jamiSumma: number;
   tolovTuri: PaymentType;
   ulgurjiSavdo: boolean;
   yetkazibBerish: boolean;

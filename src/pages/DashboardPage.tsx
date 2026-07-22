@@ -20,7 +20,7 @@ export function DashboardPage() {
   const [range, setRange] = useState<DateRange>({ preset: 'month', ...month });
 
   const metrics = useMemo(() => {
-    const salesTotal = data.sales.filter((item) => isInRange(item.sana, range.start, range.end)).reduce((sum, item) => sum + item.miqdor * item.sotuvNarxi, 0);
+    const salesTotal = data.sales.filter((item) => isInRange(item.sana, range.start, range.end)).reduce((sum, item) => sum + item.items.reduce((lineSum, line) => lineSum + line.miqdor * line.sotuvNarxi, 0), 0);
     const realIncome = sumByRange(data.incomes, range.start, range.end);
     const expense = sumByRange(data.expenses, range.start, range.end);
     const gross = grossProfitForSales(data.sales, data.perfumes, range.start, range.end);
@@ -29,7 +29,7 @@ export function DashboardPage() {
 
   const weekly = useMemo(() => Array.from({ length: 7 }, (_, i) => {
     const date = daysAgo(6 - i);
-    const amount = data.sales.filter((sale) => sale.sana === date).reduce((sum, sale) => sum + sale.miqdor * sale.sotuvNarxi, 0);
+    const amount = data.sales.filter((sale) => sale.sana === date).reduce((sum, sale) => sum + sale.items.reduce((lineSum, line) => lineSum + line.miqdor * line.sotuvNarxi, 0), 0);
     return { name: new Intl.DateTimeFormat('uz-UZ', { weekday: 'short' }).format(new Date(date)), savdo: amount };
   }), [data.sales]);
 
@@ -45,7 +45,7 @@ export function DashboardPage() {
 
   const topProducts = useMemo(() => {
     const counts = new Map<string, number>();
-    data.sales.forEach((sale) => counts.set(sale.perfumeId, (counts.get(sale.perfumeId) ?? 0) + sale.miqdor));
+    data.sales.forEach((sale) => sale.items.forEach((line) => counts.set(line.perfumeId, (counts.get(line.perfumeId) ?? 0) + line.miqdor)));
     return [...counts.entries()].map(([id, count]) => ({ product: data.perfumes.find((item) => item.id === id), count })).filter((item) => item.product).sort((a, b) => b.count - a.count).slice(0, 5);
   }, [data]);
 
@@ -54,7 +54,7 @@ export function DashboardPage() {
     ...data.expenses.map((item) => ({ id: item.id, sana: item.sana, title: item.izoh, amount: item.summa, type: 'expense' as const })),
   ].sort((a, b) => b.sana.localeCompare(a.sana)).slice(0, 7), [data]);
 
-  const todaySales = data.sales.filter((sale) => sale.sana === today()).reduce((sum, sale) => sum + sale.miqdor * sale.sotuvNarxi, 0);
+  const todaySales = data.sales.filter((sale) => sale.sana === today()).reduce((sum, sale) => sum + sale.items.reduce((lineSum, line) => lineSum + line.miqdor * line.sotuvNarxi, 0), 0);
 
   return (
     <div>
