@@ -17,13 +17,17 @@ export const getDebtStatus = (debt: { jamiQarz: number; tolangan: number; qolgan
   return 'Qarzdor';
 };
 
+// Uses each line's own frozen kelishNarxi (the product's cost at the moment of sale) so that
+// editing a product's price today doesn't retroactively change historical profit reports.
+// Falls back to the product's current cost only for old rows created before that field existed.
 export const grossProfitForSales = (sales: Sale[], perfumes: Perfume[], start: string, end: string) =>
   sales
     .filter((sale) => isInRange(sale.sana, start, end))
     .reduce((sum, sale) => {
       return sum + sale.items.reduce((lineTotal, line) => {
         const perfume = perfumes.find((item) => item.id === line.perfumeId);
-        return lineTotal + line.miqdor * (line.sotuvNarxi - (perfume?.kelishNarxi ?? 0));
+        const cost = line.kelishNarxi ?? perfume?.kelishNarxi ?? 0;
+        return lineTotal + line.miqdor * (line.sotuvNarxi - cost);
       }, 0);
     }, 0);
 

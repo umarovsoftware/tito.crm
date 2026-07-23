@@ -6,6 +6,8 @@ Django REST Framework backend for the perfume-shop admin dashboard. SQLite is us
 
 ```powershell
 cd backend
+python -m venv venv
+venv\scripts\activate
 python -m pip install -r requirements.txt
 python manage.py migrate
 python manage.py runserver

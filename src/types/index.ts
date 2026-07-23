@@ -43,6 +43,8 @@ export interface SaleItem {
   perfumeId: string;
   miqdor: number;
   sotuvNarxi: number;
+  /** Server-frozen cost at the moment of sale; read-only, ignored if sent by the client. */
+  kelishNarxi?: number;
   jamiSumma?: number;
 }
 

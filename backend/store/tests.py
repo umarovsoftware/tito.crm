@@ -81,6 +81,28 @@ class StoreApiTests(APITestCase):
         self.second_product.refresh_from_db()
         self.assertEqual(self.second_product.quantity, 4)
 
+    def test_sale_item_freezes_cost_at_time_of_sale(self):
+        self.product.quantity = 5
+        self.product.save(update_fields=["quantity"])
+        sale = self.client.post("/api/sales/", {
+            "saleTuri": "Doimiy mijoz", "customerId": self.customer_id,
+            "items": [{"perfumeId": str(self.product.id), "miqdor": 1, "sotuvNarxi": "150.00"}],
+            "tolovTuri": "Naqd", "sana": "2026-07-20",
+        }, format="json")
+        self.assertEqual(sale.status_code, 201)
+        self.assertEqual(Decimal(str(sale.data["items"][0]["kelishNarxi"])), Decimal("100.00"))
+
+        # Raising the product's purchase price today must not change what this past sale
+        # recorded as its cost — otherwise historical profit reports would drift retroactively.
+        price_update = self.client.put(f"/api/perfumes/{self.product.id}/", {
+            "firmaNomi": "Dior", "tovarNomi": "Sauvage", "kategoriya": "Erkaklar", "hajmiMl": 100,
+            "barcode": "100000001", "kelishNarxi": "130.00", "sotuvNarxi": "150.00", "qoldiq": 4, "minimalQoldiq": 0,
+        }, format="json")
+        self.assertEqual(price_update.status_code, 200, price_update.data)
+
+        refetched = self.client.get(f"/api/sales/{sale.data['id']}/")
+        self.assertEqual(Decimal(str(refetched.data["items"][0]["kelishNarxi"])), Decimal("100.00"))
+
     def test_jwt_login_and_me(self):
         self.client.force_authenticate(user=None)
         response = self.client.post("/api/auth/login/", {"username": "tester", "password": "strong-pass-123"}, format="json")

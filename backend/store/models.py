@@ -107,6 +107,9 @@ class SaleItem(TimeStampedModel):
     product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name="sale_items")
     quantity = models.PositiveIntegerField(validators=[MinValueValidator(1)])
     unit_price = models.DecimalField(max_digits=14, decimal_places=2, validators=[MinValueValidator(Decimal("0"))])
+    # Snapshot of the product's purchase price at the moment of sale, so that later edits to the
+    # product's cost don't retroactively change historical profit reports.
+    purchase_price = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0"), validators=[MinValueValidator(Decimal("0"))])
 
     class Meta:
         ordering = ["created_at"]

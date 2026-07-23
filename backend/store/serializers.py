@@ -107,12 +107,13 @@ class SaleItemSerializer(serializers.ModelSerializer):
     perfumeId = serializers.PrimaryKeyRelatedField(source="product", queryset=Product.objects.all())
     miqdor = serializers.IntegerField(source="quantity", min_value=1)
     sotuvNarxi = serializers.DecimalField(source="unit_price", max_digits=14, decimal_places=2, min_value=Decimal("0"))
+    kelishNarxi = serializers.DecimalField(source="purchase_price", max_digits=14, decimal_places=2, read_only=True)
     jamiSumma = serializers.DecimalField(source="total", max_digits=14, decimal_places=2, read_only=True)
 
     class Meta:
         model = SaleItem
-        fields = ("id", "perfumeId", "miqdor", "sotuvNarxi", "jamiSumma")
-        read_only_fields = ("id", "jamiSumma")
+        fields = ("id", "perfumeId", "miqdor", "sotuvNarxi", "kelishNarxi", "jamiSumma")
+        read_only_fields = ("id", "kelishNarxi", "jamiSumma")
 
 
 class SaleSerializer(serializers.ModelSerializer):
@@ -161,6 +162,9 @@ class SaleSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"items": f"{product}: qoldiq yetarli emas. Mavjud: {product.quantity} dona."})
             product.quantity -= item["quantity"]
             product.save(update_fields=["quantity", "updated_at"])
+            # Freeze today's cost onto the sale item so later price edits on the product don't
+            # retroactively change this sale's historical profit.
+            item["purchase_price"] = product.purchase_price
 
     def _record_finance(self, sale):
         item_names = ", ".join(str(item.product) for item in sale.items.select_related("product").all())
