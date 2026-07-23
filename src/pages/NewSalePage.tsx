@@ -20,7 +20,7 @@ export function NewSalePage() {
 
   const [form, setForm] = useState<SaleFormState>(() => {
     const scannedId = (location.state as { scannedPerfumeId?: string } | null)?.scannedPerfumeId;
-    const base = createInitialSale('Doimiy mijoz');
+    const base = createInitialSale('Tasodifiy xaridor');
     const perfume = scannedId ? data.perfumes.find((item) => item.id === scannedId) : undefined;
     if (perfume) return { ...base, items: [{ perfumeId: perfume.id, miqdor: 1, sotuvNarxi: perfume.sotuvNarxi }] };
     return base;
