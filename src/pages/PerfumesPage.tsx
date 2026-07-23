@@ -1,6 +1,7 @@
-import { ArrowDownAZ, ArrowUpAZ, Edit3, Plus, Search, Trash2 } from 'lucide-react';
+import { ArrowDownAZ, ArrowUpAZ, Edit3, Plus, QrCode, Search, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { BarcodeScannerModal } from '../components/BarcodeScannerModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { EmptyState } from '../components/EmptyState';
 import { Modal } from '../components/Modal';
@@ -31,6 +32,7 @@ export function PerfumesPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const pageSize = 8;
 
   useEffect(() => { setQuery(params.get('q') ?? ''); }, [params]);
@@ -139,7 +141,7 @@ export function PerfumesPage() {
         <div><label className="label">Tovar nomi *</label><input className="input" value={form.tovarNomi} onChange={(e) => setForm({...form, tovarNomi:e.target.value})} /></div>
         <div><label className="label">Kategoriya</label><select className="input" value={form.kategoriya} onChange={(e) => setForm({...form, kategoriya:e.target.value as Category})}><option>Erkaklar</option><option>Ayollar</option><option>Unisex</option></select></div>
         <div><label className="label">Hajmi (ml)</label><input className="input" type="number" onFocus={(e) => e.target.select()} min="1" value={form.hajmiMl} onChange={(e) => setForm({...form, hajmiMl:Number(e.target.value)})} /></div>
-        <div><label className="label">Barcode *</label><input className="input" value={form.barcode} onChange={(e) => setForm({...form, barcode:e.target.value})} /></div>
+        <div><label className="label">Barcode *</label><div className="flex gap-2"><input className="input" value={form.barcode} onChange={(e) => setForm({...form, barcode:e.target.value})} /><button type="button" className="btn-secondary shrink-0 !px-3" title="Kamera bilan skanerlash" onClick={() => setScannerOpen(true)}><QrCode size={18} /></button></div></div>
         <div><label className="label">Rasm URL</label><input className="input" value={form.rasm} onChange={(e) => setForm({...form, rasm:e.target.value})} /></div>
         <div><label className="label">Kelish narxi</label><input className="input" type="number" onFocus={(e) => e.target.select()} min="0" value={form.kelishNarxi} onChange={(e) => setForm({...form, kelishNarxi:Number(e.target.value)})} /></div>
         <div><label className="label">Sotuv narxi</label><input className="input" type="number" onFocus={(e) => e.target.select()} min="0" value={form.sotuvNarxi} onChange={(e) => setForm({...form, sotuvNarxi:Number(e.target.value)})} /></div>
@@ -148,6 +150,7 @@ export function PerfumesPage() {
         <div className="sm:col-span-2 flex justify-end gap-3 pt-2"><button type="button" className="btn-secondary" onClick={() => setOpen(false)} disabled={saving}>Bekor qilish</button><button className="btn-primary" disabled={saving}>{saving ? 'Saqlanmoqda...' : 'Saqlash'}</button></div>
       </form></Modal>
       <ConfirmDialog open={Boolean(deleteId)} message="Parfyumni o‘chirishni tasdiqlaysizmi? Tarixiy operatsiyasi mavjud mahsulot o‘chirilmaydi." onClose={() => setDeleteId(null)} onConfirm={remove} loading={deleting} />
+      <BarcodeScannerModal open={scannerOpen} onClose={() => setScannerOpen(false)} onDetected={(code) => { setForm((current) => ({ ...current, barcode: code })); showToast('Barcode o‘qildi.'); }} />
     </div>
   );
 }

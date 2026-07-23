@@ -1,6 +1,7 @@
-import { ArrowLeft, Edit3, Plus, Search, Trash2 } from 'lucide-react';
+import { ArrowLeft, Edit3, Plus, QrCode, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { BarcodeScannerModal } from '../components/BarcodeScannerModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { EmptyState } from '../components/EmptyState';
 import { Modal } from '../components/Modal';
@@ -26,6 +27,7 @@ export function StockInPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const rows = useMemo(() => data.stockIns.filter((item) => {
     const product = data.perfumes.find((p) => p.id === item.perfumeId);
     return `${product?.firmaNomi} ${product?.tovarNomi} ${item.yetkazibBeruvchi}`.toLowerCase().includes(query.toLowerCase());
@@ -51,6 +53,12 @@ export function StockInPage() {
     showToast(result.ok ? 'Kirim o‘chirildi.' : result.message, result.ok ? 'success' : 'error');
     setDeleteId(null);
   };
+  const handleScanned = (code: string) => {
+    const match = data.perfumes.find((p) => p.barcode === code);
+    if (!match) return showToast(`"${code}" barcode bo‘yicha mahsulot topilmadi.`, 'error');
+    setForm((current) => ({ ...current, perfumeId: match.id, kelishNarxi: match.kelishNarxi }));
+    showToast(`${match.firmaNomi} ${match.tovarNomi} tanlandi.`);
+  };
 
   return <div>
     <PageHeader title="Tovar kirimi" description="Yetkazib beruvchidan kelgan mahsulotlarni omborga kiriting." actions={<div className="flex flex-wrap gap-2"><button className="btn-secondary" onClick={() => navigate('/ombor')}><ArrowLeft size={18}/> Omborga qaytish</button><button className="btn-primary" onClick={startAdd}><Plus size={18}/> Tovar kirimi</button></div>} />
@@ -74,7 +82,7 @@ export function StockInPage() {
       {!rows.length&&<EmptyState/>}
     </div>
     <Modal open={open} title={form.id?'Tovar kirimini tahrirlash':'Yangi tovar kirimi'} onClose={()=>setOpen(false)}><form onSubmit={submit} className="space-y-4">
-      <div><label className="label">Parfyumni tanlash *</label><SearchSelect value={form.perfumeId} onChange={(perfumeId)=>{const p=data.perfumes.find(x=>x.id===perfumeId);setForm({...form,perfumeId,kelishNarxi:p?.kelishNarxi??0})}} options={data.perfumes.map((p)=>({value:p.id,label:`${p.firmaNomi} ${p.tovarNomi}`,sublabel:`qoldiq ${p.qoldiq}`}))} placeholder="Tanlang" /></div>
+      <div><label className="label">Parfyumni tanlash *</label><div className="flex gap-2"><div className="flex-1"><SearchSelect value={form.perfumeId} onChange={(perfumeId)=>{const p=data.perfumes.find(x=>x.id===perfumeId);setForm({...form,perfumeId,kelishNarxi:p?.kelishNarxi??0})}} options={data.perfumes.map((p)=>({value:p.id,label:`${p.firmaNomi} ${p.tovarNomi}`,sublabel:`qoldiq ${p.qoldiq}`}))} placeholder="Tanlang" /></div><button type="button" className="btn-secondary shrink-0 !px-3" title="Kamera bilan skanerlash" onClick={() => setScannerOpen(true)}><QrCode size={18} /></button></div></div>
       <div className="grid gap-4 sm:grid-cols-2"><div><label className="label">Miqdor *</label><input className="input" type="number" onFocus={(e) => e.target.select()} min="1" value={form.miqdor} onChange={(e)=>setForm({...form,miqdor:Number(e.target.value)})}/></div><div><label className="label">Kelish narxi *</label><input className="input" type="number" onFocus={(e) => e.target.select()} min="1" value={form.kelishNarxi} onChange={(e)=>setForm({...form,kelishNarxi:Number(e.target.value)})}/></div></div>
       <div><label className="label">Firma yoki yetkazib beruvchi *</label><input className="input" value={form.yetkazibBeruvchi} onChange={(e)=>setForm({...form,yetkazibBeruvchi:e.target.value})}/></div>
       <div><label className="label">Sana *</label><input className="input" type="date" value={form.sana} onChange={(e)=>setForm({...form,sana:e.target.value})}/></div>
@@ -83,5 +91,6 @@ export function StockInPage() {
       <div className="flex justify-end gap-3"><button type="button" className="btn-secondary" onClick={()=>setOpen(false)} disabled={saving}>Bekor qilish</button><button className="btn-primary" disabled={saving}>{saving ? 'Saqlanmoqda...' : 'Saqlash'}</button></div>
     </form></Modal>
     <ConfirmDialog open={Boolean(deleteId)} message="Kirim o‘chirilsa, mahsulot qoldig‘i va unga bog‘liq chiqim ham kamayadi." onClose={()=>setDeleteId(null)} onConfirm={remove} loading={deleting}/>
+    <BarcodeScannerModal open={scannerOpen} onClose={() => setScannerOpen(false)} onDetected={handleScanned} />
   </div>;
 }

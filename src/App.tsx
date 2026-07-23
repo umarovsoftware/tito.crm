@@ -8,6 +8,7 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ 
 const PerfumesPage = lazy(() => import('./pages/PerfumesPage').then((m) => ({ default: m.PerfumesPage })));
 const StockInPage = lazy(() => import('./pages/StockInPage').then((m) => ({ default: m.StockInPage })));
 const SalesPage = lazy(() => import('./pages/SalesPage').then((m) => ({ default: m.SalesPage })));
+const NewSalePage = lazy(() => import('./pages/NewSalePage').then((m) => ({ default: m.NewSalePage })));
 const CustomersPage = lazy(() => import('./pages/CustomersPage').then((m) => ({ default: m.CustomersPage })));
 const DebtorsPage = lazy(() => import('./pages/DebtorsPage').then((m) => ({ default: m.DebtorsPage })));
 const MyDebtsPage = lazy(() => import('./pages/MyDebtsPage').then((m) => ({ default: m.MyDebtsPage })));
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="parfyumlar" element={<PerfumesPage />} />
           <Route path="tovar-kirimi" element={<StockInPage />} />
           <Route path="sotuvlar" element={<SalesPage />} />
+          <Route path="sotuvlar/yangi" element={<NewSalePage />} />
           <Route path="mijozlar" element={<CustomersPage />} />
           <Route path="qarzdorlar" element={<DebtorsPage />} />
           <Route path="qarzlarim" element={<MyDebtsPage />} />
