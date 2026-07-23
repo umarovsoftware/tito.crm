@@ -1,4 +1,5 @@
-export const toInputDate = (date: Date) => date.toISOString().slice(0, 10);
+const pad = (value: number) => String(value).padStart(2, '0');
+export const toInputDate = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 export const today = () => toInputDate(new Date());
 
 export const daysAgo = (days: number) => {

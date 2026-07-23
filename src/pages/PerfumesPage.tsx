@@ -10,7 +10,7 @@ import { StockBadge } from '../components/Badge';
 import { useToast } from '../components/Toast';
 import { useAppStore } from '../store/AppStore';
 import type { Category, Perfume } from '../types';
-import { expectedProfit, purchaseTotal, salesTotal } from '../utils/calculations';
+import { expectedProfit } from '../utils/calculations';
 import { formatMoney } from '../utils/format';
 
 const emptyForm = { firmaNomi: '', tovarNomi: '', kategoriya: 'Erkaklar' as Category, hajmiMl: 100, barcode: '', kelishNarxi: 0, sotuvNarxi: 0, qoldiq: 0, minimalQoldiq: 3, rasm: 'https://images.unsplash.com/photo-1541643600914-78b084683601?auto=format&fit=crop&w=300&q=80' };
@@ -18,6 +18,7 @@ type FormState = typeof emptyForm & { id?: string };
 
 export function PerfumesPage() {
   const { data, savePerfume, deletePerfume } = useAppStore();
+  const money = (value: number) => formatMoney(value, data.settings.valyuta);
   const { showToast } = useToast();
   const [params] = useSearchParams();
   const [query, setQuery] = useState(params.get('q') ?? '');
@@ -28,6 +29,8 @@ export function PerfumesPage() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [open, setOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const pageSize = 8;
 
   useEffect(() => { setQuery(params.get('q') ?? ''); }, [params]);
@@ -46,20 +49,25 @@ export function PerfumesPage() {
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const rows = filtered.slice((page - 1) * pageSize, page * pageSize);
   const setSorting = (key: keyof Perfume) => setSort((current) => ({ key, dir: current.key === key && current.dir === 'asc' ? 'desc' : 'asc' }));
+  const sortIcon = (key: keyof Perfume) => sort.key === key ? (sort.dir === 'asc' ? <ArrowDownAZ size={15} /> : <ArrowUpAZ size={15} />) : null;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!form.firmaNomi.trim() || !form.tovarNomi.trim() || !form.barcode.trim()) return showToast('Majburiy maydonlarni to‘ldiring.', 'warning');
     if (form.kelishNarxi <= 0 || form.sotuvNarxi <= 0 || form.sotuvNarxi < form.kelishNarxi) return showToast('Narxlarni to‘g‘ri kiriting.', 'warning');
+    setSaving(true);
     const result = await savePerfume(form);
+    setSaving(false);
     if (!result.ok) return showToast(result.message, 'error');
     showToast(form.id ? 'Parfyum yangilandi.' : 'Parfyum qo‘shildi.'); setOpen(false); setForm(emptyForm);
   };
 
-  const edit = (item: Perfume) => { const { createdAt: _, ...rest } = item; setForm(rest); setOpen(true); };
+  const edit = (item: Perfume) => { const { createdAt: _createdAt, ...rest } = item; setForm(rest); setOpen(true); };
   const remove = async () => {
     if (!deleteId) return;
+    setDeleting(true);
     const result = await deletePerfume(deleteId);
+    setDeleting(false);
     showToast(result.ok ? 'Parfyum o‘chirildi.' : result.message, result.ok ? 'success' : 'error'); setDeleteId(null);
   };
 
@@ -67,18 +75,60 @@ export function PerfumesPage() {
     <div>
       <PageHeader title="Parfyumlar" description="Mahsulotlar, narxlar va ombor qoldiqlarini boshqaring." actions={<button className="btn-primary" onClick={() => { setForm(emptyForm); setOpen(true); }}><Plus size={18} /> Parfyum qo‘shish</button>} />
       <div className="card mb-4 grid gap-3 p-4 md:grid-cols-3">
-        <label className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><input className="input pl-10" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Firma, nom yoki barcode..." /></label>
+        <label className="relative self-start"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><input className="input pl-10" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Firma, nom yoki barcode..." /></label>
         <select className="input" value={category} onChange={(e) => setCategory(e.target.value)}><option>Barchasi</option><option>Erkaklar</option><option>Ayollar</option><option>Unisex</option></select>
         <select className="input" value={stockFilter} onChange={(e) => setStockFilter(e.target.value)}><option>Barchasi</option><option>Kam qolgan</option><option>Yetarli</option></select>
       </div>
 
       <div className="card overflow-hidden">
-        <div className="overflow-x-auto"><table className="min-w-[1450px] w-full text-sm"><thead className="table-head"><tr>
-          <th className="px-4 py-3">Mahsulot</th>
-          {([['firmaNomi','Firma nomi'],['tovarNomi','Tovar nomi'],['kategoriya','Kategoriya'],['qoldiq','Astatka'],['kelishNarxi','Kelish narxi'],['sotuvNarxi','Sotuv narxi']] as Array<[keyof Perfume,string]>).map(([key,label]) => <th key={key} className="px-4 py-3"><button className="flex items-center gap-1" onClick={() => setSorting(key)}>{label}{sort.key === key ? (sort.dir === 'asc' ? <ArrowDownAZ size={15}/> : <ArrowUpAZ size={15}/>) : null}</button></th>)}
-          <th className="px-4 py-3">Kelish summasi</th><th className="px-4 py-3">Sotuv summasi</th><th className="px-4 py-3">Kutilayotgan foyda</th><th className="px-4 py-3">Holat</th><th className="px-4 py-3 text-right">Amallar</th>
+        {/* Mobile: card list */}
+        <div className="divide-y lg:hidden">
+          {rows.map((item) => (
+            <div key={item.id} className="flex gap-3 p-4">
+              <img src={item.rasm} alt={item.tovarNomi} className="h-14 w-14 shrink-0 rounded-xl object-cover" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">{item.firmaNomi} {item.tovarNomi}</p>
+                    <p className="text-xs text-slate-400">{item.hajmiMl} ml · {item.barcode} · {item.kategoriya}</p>
+                  </div>
+                  <StockBadge current={item.qoldiq} minimum={item.minimalQoldiq} />
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                  <div><p className="text-xs text-slate-400">Qoldiq</p><p className="font-bold">{item.qoldiq} dona</p></div>
+                  <div><p className="text-xs text-slate-400">Kutilayotgan foyda</p><p className="font-semibold text-emerald-600">{money(expectedProfit(item))}</p></div>
+                  <div><p className="text-xs text-slate-400">Kelish narxi</p><p>{money(item.kelishNarxi)}</p></div>
+                  <div><p className="text-xs text-slate-400">Sotuv narxi</p><p>{money(item.sotuvNarxi)}</p></div>
+                </div>
+                <div className="mt-3 flex justify-end gap-1">
+                  <button className="rounded-lg p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40" onClick={() => edit(item)}><Edit3 size={17} /></button>
+                  <button className="rounded-lg p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40" onClick={() => setDeleteId(item.id)}><Trash2 size={17} /></button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* Desktop: condensed table */}
+        <div className="hidden overflow-x-auto lg:block"><table className="w-full text-sm"><thead className="table-head"><tr>
+          <th className="px-4 py-3"><button className="flex items-center gap-1" onClick={() => setSorting('firmaNomi')}>Mahsulot{sortIcon('firmaNomi')}</button></th>
+          <th className="px-4 py-3">Kategoriya</th>
+          <th className="px-4 py-3"><button className="flex items-center gap-1" onClick={() => setSorting('qoldiq')}>Qoldiq{sortIcon('qoldiq')}</button></th>
+          <th className="px-4 py-3">Kelish narxi</th>
+          <th className="px-4 py-3">Sotuv narxi</th>
+          <th className="px-4 py-3">Kutilayotgan foyda</th>
+          <th className="px-4 py-3">Holat</th>
+          <th className="px-4 py-3 text-right">Amallar</th>
         </tr></thead><tbody className="divide-y">
-          {rows.map((item) => <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40"><td className="px-4 py-3"><img src={item.rasm} alt={item.tovarNomi} className="h-12 w-12 rounded-xl object-cover" /></td><td className="px-4 py-3 font-semibold">{item.firmaNomi}</td><td className="px-4 py-3">{item.tovarNomi}<p className="text-xs text-slate-400">{item.hajmiMl} ml · {item.barcode}</p></td><td className="px-4 py-3">{item.kategoriya}</td><td className="px-4 py-3 font-bold">{item.qoldiq} dona</td><td className="px-4 py-3">{formatMoney(item.kelishNarxi)}</td><td className="px-4 py-3">{formatMoney(purchaseTotal(item))}</td><td className="px-4 py-3">{formatMoney(item.sotuvNarxi)}</td><td className="px-4 py-3">{formatMoney(salesTotal(item))}</td><td className="px-4 py-3 font-semibold text-emerald-600">{formatMoney(expectedProfit(item))}</td><td className="px-4 py-3"><StockBadge current={item.qoldiq} minimum={item.minimalQoldiq} /></td><td className="px-4 py-3"><div className="flex justify-end gap-1"><button className="rounded-lg p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40" onClick={() => edit(item)}><Edit3 size={17}/></button><button className="rounded-lg p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40" onClick={() => setDeleteId(item.id)}><Trash2 size={17}/></button></div></td></tr>)}
+          {rows.map((item) => <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+            <td className="px-4 py-3"><div className="flex items-center gap-3"><img src={item.rasm} alt={item.tovarNomi} className="h-10 w-10 shrink-0 rounded-xl object-cover" /><div className="min-w-0"><p className="truncate font-semibold">{item.firmaNomi} {item.tovarNomi}</p><p className="text-xs text-slate-400">{item.hajmiMl} ml · {item.barcode}</p></div></div></td>
+            <td className="px-4 py-3 whitespace-nowrap">{item.kategoriya}</td>
+            <td className="px-4 py-3 whitespace-nowrap font-bold">{item.qoldiq} dona</td>
+            <td className="px-4 py-3 whitespace-nowrap">{money(item.kelishNarxi)}</td>
+            <td className="px-4 py-3 whitespace-nowrap">{money(item.sotuvNarxi)}</td>
+            <td className="px-4 py-3 whitespace-nowrap font-semibold text-emerald-600">{money(expectedProfit(item))}</td>
+            <td className="px-4 py-3"><StockBadge current={item.qoldiq} minimum={item.minimalQoldiq} /></td>
+            <td className="px-4 py-3"><div className="flex justify-end gap-1"><button className="rounded-lg p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40" onClick={() => edit(item)}><Edit3 size={17}/></button><button className="rounded-lg p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40" onClick={() => setDeleteId(item.id)}><Trash2 size={17}/></button></div></td>
+          </tr>)}
         </tbody></table></div>
         {!rows.length && <EmptyState text="Filtr bo‘yicha parfyum topilmadi" />}
         <Pagination page={page} pages={pages} onChange={setPage} />
@@ -88,16 +138,16 @@ export function PerfumesPage() {
         <div><label className="label">Firma nomi *</label><input className="input" value={form.firmaNomi} onChange={(e) => setForm({...form, firmaNomi:e.target.value})} /></div>
         <div><label className="label">Tovar nomi *</label><input className="input" value={form.tovarNomi} onChange={(e) => setForm({...form, tovarNomi:e.target.value})} /></div>
         <div><label className="label">Kategoriya</label><select className="input" value={form.kategoriya} onChange={(e) => setForm({...form, kategoriya:e.target.value as Category})}><option>Erkaklar</option><option>Ayollar</option><option>Unisex</option></select></div>
-        <div><label className="label">Hajmi (ml)</label><input className="input" type="number" min="1" value={form.hajmiMl} onChange={(e) => setForm({...form, hajmiMl:Number(e.target.value)})} /></div>
+        <div><label className="label">Hajmi (ml)</label><input className="input" type="number" onFocus={(e) => e.target.select()} min="1" value={form.hajmiMl} onChange={(e) => setForm({...form, hajmiMl:Number(e.target.value)})} /></div>
         <div><label className="label">Barcode *</label><input className="input" value={form.barcode} onChange={(e) => setForm({...form, barcode:e.target.value})} /></div>
         <div><label className="label">Rasm URL</label><input className="input" value={form.rasm} onChange={(e) => setForm({...form, rasm:e.target.value})} /></div>
-        <div><label className="label">Kelish narxi</label><input className="input" type="number" min="0" value={form.kelishNarxi} onChange={(e) => setForm({...form, kelishNarxi:Number(e.target.value)})} /></div>
-        <div><label className="label">Sotuv narxi</label><input className="input" type="number" min="0" value={form.sotuvNarxi} onChange={(e) => setForm({...form, sotuvNarxi:Number(e.target.value)})} /></div>
-        <div><label className="label">Astatka</label><input className="input" type="number" min="0" value={form.qoldiq} onChange={(e) => setForm({...form, qoldiq:Number(e.target.value)})} /></div>
-        <div><label className="label">Minimal qoldiq</label><input className="input" type="number" min="0" value={form.minimalQoldiq} onChange={(e) => setForm({...form, minimalQoldiq:Number(e.target.value)})} /></div>
-        <div className="sm:col-span-2 flex justify-end gap-3 pt-2"><button type="button" className="btn-secondary" onClick={() => setOpen(false)}>Bekor qilish</button><button className="btn-primary">Saqlash</button></div>
+        <div><label className="label">Kelish narxi</label><input className="input" type="number" onFocus={(e) => e.target.select()} min="0" value={form.kelishNarxi} onChange={(e) => setForm({...form, kelishNarxi:Number(e.target.value)})} /></div>
+        <div><label className="label">Sotuv narxi</label><input className="input" type="number" onFocus={(e) => e.target.select()} min="0" value={form.sotuvNarxi} onChange={(e) => setForm({...form, sotuvNarxi:Number(e.target.value)})} /></div>
+        <div><label className="label">Astatka</label><input className="input" type="number" onFocus={(e) => e.target.select()} min="0" value={form.qoldiq} onChange={(e) => setForm({...form, qoldiq:Number(e.target.value)})} /></div>
+        <div><label className="label">Minimal qoldiq</label><input className="input" type="number" onFocus={(e) => e.target.select()} min="0" value={form.minimalQoldiq} onChange={(e) => setForm({...form, minimalQoldiq:Number(e.target.value)})} /></div>
+        <div className="sm:col-span-2 flex justify-end gap-3 pt-2"><button type="button" className="btn-secondary" onClick={() => setOpen(false)} disabled={saving}>Bekor qilish</button><button className="btn-primary" disabled={saving}>{saving ? 'Saqlanmoqda...' : 'Saqlash'}</button></div>
       </form></Modal>
-      <ConfirmDialog open={Boolean(deleteId)} message="Parfyumni o‘chirishni tasdiqlaysizmi? Tarixiy operatsiyasi mavjud mahsulot o‘chirilmaydi." onClose={() => setDeleteId(null)} onConfirm={remove} />
+      <ConfirmDialog open={Boolean(deleteId)} message="Parfyumni o‘chirishni tasdiqlaysizmi? Tarixiy operatsiyasi mavjud mahsulot o‘chirilmaydi." onClose={() => setDeleteId(null)} onConfirm={remove} loading={deleting} />
     </div>
   );
 }

@@ -11,20 +11,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const showToast = useCallback((message: string, type: ToastType = 'success') => {
     const id = crypto.randomUUID();
     setItems((current) => [...current, { id, message, type }]);
-    window.setTimeout(() => setItems((current) => current.filter((item) => item.id !== id)), 3500);
+    const duration = type === 'error' ? 6000 : 3500;
+    window.setTimeout(() => setItems((current) => current.filter((item) => item.id !== id)), duration);
   }, []);
 
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      <div className="fixed right-4 top-4 z-[100] flex w-[min(92vw,380px)] flex-col gap-2">
+      <div className="fixed right-4 top-4 z-[100] flex w-[min(92vw,380px)] flex-col gap-2" role="status" aria-live="polite">
         {items.map((item) => {
           const Icon = item.type === 'success' ? CheckCircle2 : item.type === 'error' ? XCircle : AlertTriangle;
           return (
             <div key={item.id} className="flex items-center gap-3 rounded-2xl border bg-white p-4 shadow-xl dark:bg-slate-900">
               <Icon className={item.type === 'success' ? 'text-emerald-500' : item.type === 'error' ? 'text-red-500' : 'text-amber-500'} size={20} />
               <p className="flex-1 text-sm font-medium">{item.message}</p>
-              <button onClick={() => setItems((current) => current.filter((toast) => toast.id !== item.id))}><X size={17} /></button>
+              <button aria-label="Xabarni yopish" onClick={() => setItems((current) => current.filter((toast) => toast.id !== item.id))}><X size={17} /></button>
             </div>
           );
         })}

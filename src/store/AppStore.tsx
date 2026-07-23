@@ -1,16 +1,16 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { AppData, AppSettings, Customer, Expense, ExpenseCategory, Income, PayableDebt, Perfume, Sale, StockIn } from '../types';
+import type { ActivityLog, AppData, AppSettings, Customer, Employee, Expense, ExpenseCategory, Income, PayableDebt, Perfume, Sale, StockIn } from '../types';
 import { useAuth } from '../auth/AuthContext';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000/api').replace(/\/$/, '');
 const emptyData: AppData = {
   perfumes: [], customers: [], stockIns: [], sales: [], debts: [], payables: [], incomes: [], expenses: [],
   settings: { dokonNomi: 'Aroma House', telefon: '', manzil: '', valyuta: "so'm", darkMode: false },
+  employees: [], activityLogs: [],
 };
 
 export type ActionResult = { ok: true } | { ok: false; message: string };
-// Legacy UI callbacks may inspect `.ok` immediately; awaited calls receive the real server result.
-type AsyncAction = (Promise<ActionResult> & { ok: true }) | (Promise<ActionResult> & { ok: false; message: string });
+type AsyncAction = Promise<ActionResult>;
 type PerfumeInput = Omit<Perfume, 'id' | 'createdAt'> & { id?: string };
 type CustomerInput = Omit<Customer, 'id' | 'createdAt'> & { id?: string };
 type StockInput = Omit<StockIn, 'id' | 'createdAt'> & { id?: string };
@@ -18,6 +18,7 @@ type SaleInput = Omit<Sale, 'id' | 'createdAt' | 'sotuvKodi' | 'xaridorKodi' | '
 type IncomeInput = Omit<Income, 'id' | 'createdAt' | 'sourceId'> & { id?: string };
 type ExpenseInput = Omit<Expense, 'id' | 'createdAt' | 'sourceId'> & { id?: string };
 type PayableInput = { id?: string; yetkazibBeruvchi: string; telefon: string; kategoriya: ExpenseCategory; jamiQarz: number; muddat: string; izoh: string; sana: string };
+type EmployeeInput = { id?: number; username: string; ism: string; familiya: string; email: string; faol: boolean; parol?: string };
 
 interface AppStoreValue {
   data: AppData;
@@ -41,7 +42,8 @@ interface AppStoreValue {
   saveExpense: (input: ExpenseInput) => AsyncAction;
   deleteExpense: (id: string) => AsyncAction;
   updateSettings: (settings: AppSettings) => AsyncAction;
-  resetDemo: () => AsyncAction;
+  saveEmployee: (input: EmployeeInput) => AsyncAction;
+  deleteEmployee: (id: number) => AsyncAction;
 }
 
 const AppStoreContext = createContext<AppStoreValue | null>(null);
@@ -83,13 +85,16 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
-    const [perfumes, customers, stockIns, sales, debts, payables, incomes, expenses, settings] = await Promise.all([
+    const isSuperAdmin = Boolean(user?.is_superuser);
+    const [perfumes, customers, stockIns, sales, debts, payables, incomes, expenses, settings, employees, activityLogs] = await Promise.all([
       request<Perfume[]>('/perfumes/'), request<Customer[]>('/customers/'), request<StockIn[]>('/stock-ins/'),
       request<Sale[]>('/sales/'), request<AppData['debts']>('/debts/'), request<PayableDebt[]>('/payables/'),
       request<Income[]>('/incomes/'), request<Expense[]>('/expenses/'), request<AppSettings>('/settings/'),
+      isSuperAdmin ? request<Employee[]>('/employees/') : Promise.resolve([]),
+      isSuperAdmin ? request<ActivityLog[]>('/activity-logs/') : Promise.resolve([]),
     ]);
-    setData({ perfumes, customers, stockIns, sales, debts, payables, incomes, expenses, settings });
-  }, []);
+    setData({ perfumes, customers, stockIns, sales, debts, payables, incomes, expenses, settings, employees, activityLogs });
+  }, [user]);
 
   useEffect(() => {
     if (!user) { setData(emptyData); setLoading(false); return; }
@@ -98,8 +103,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   }, [reload, user]);
 
   const run = useCallback((work: () => Promise<unknown>): AsyncAction => {
-    const outcome = work().then(async () => { await reload(); return { ok: true } as ActionResult; }).catch((error: unknown) => ({ ok: false, message: error instanceof Error ? error.message : 'Xatolik yuz berdi.' } as ActionResult));
-    return Object.assign(outcome, { ok: true }) as AsyncAction;
+    return work().then(async () => { await reload(); return { ok: true } as ActionResult; }).catch((error: unknown) => ({ ok: false, message: error instanceof Error ? error.message : 'Xatolik yuz berdi.' } as ActionResult));
   }, [reload]);
   const save = <T extends { id?: string }>(path: string, input: T) => run(() => request(input.id ? `${path}${input.id}/` : path, { method: input.id ? 'PUT' : 'POST', body: JSON.stringify(withoutId(input)) }));
   const remove = (path: string, id: string) => run(() => request(`${path}${id}/`, { method: 'DELETE' }));
@@ -117,7 +121,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     saveIncome: (input) => save('/incomes/', input), deleteIncome: (id) => remove('/incomes/', id),
     saveExpense: (input) => save('/expenses/', input), deleteExpense: (id) => remove('/expenses/', id),
     updateSettings: (settings) => run(() => request('/settings/', { method: 'PUT', body: JSON.stringify(settings) })),
-    resetDemo: () => run(() => request('/settings/reset-demo/', { method: 'POST' })),
+    saveEmployee: (input) => run(() => { const { id, ...payload } = input; return request(id ? `/employees/${id}/` : '/employees/', { method: id ? 'PATCH' : 'POST', body: JSON.stringify(payload) }); }),
+    deleteEmployee: (id) => remove('/employees/', String(id)),
   }), [data, loading, reload, run]);
 
   return <AppStoreContext.Provider value={value}>{children}</AppStoreContext.Provider>;

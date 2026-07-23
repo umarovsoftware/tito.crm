@@ -1,6 +1,7 @@
-import { BarChart3, Boxes, ChevronLeft, CircleDollarSign, CreditCard, LayoutDashboard, PackagePlus, ReceiptText, Settings, ShoppingCart, Users, WalletCards, X } from 'lucide-react';
+import { BarChart3, Boxes, ChevronLeft, CircleDollarSign, CreditCard, History, LayoutDashboard, PackagePlus, ReceiptText, Settings, ShoppingCart, UserCog, Users, WalletCards, X } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useAppStore } from '../store/AppStore';
+import { useAuth } from '../auth/AuthContext';
 
 const items = [
   { label: 'Dashboard', path: '/', icon: LayoutDashboard },
@@ -16,8 +17,15 @@ const items = [
   { label: 'Sozlamalar', path: '/sozlamalar', icon: Settings },
 ];
 
+const adminItems = [
+  { label: 'Hodimlar', path: '/hodimlar', icon: UserCog },
+  { label: 'Loglar', path: '/loglar', icon: History },
+];
+
 export function Sidebar({ mobileOpen, onMobileClose, collapsed, onCollapse }: { mobileOpen: boolean; onMobileClose: () => void; collapsed: boolean; onCollapse: () => void }) {
   const { data } = useAppStore();
+  const { user } = useAuth();
+  const navItems = user?.is_superuser ? [...items, ...adminItems] : items;
   return (
     <>
       {mobileOpen && <button aria-label="Sidebarni yopish" className="fixed inset-0 z-40 bg-slate-950/50 lg:hidden" onClick={onMobileClose} />}
@@ -30,7 +38,7 @@ export function Sidebar({ mobileOpen, onMobileClose, collapsed, onCollapse }: { 
           <button className="rounded-xl p-2 hover:bg-slate-100 lg:hidden dark:hover:bg-slate-800" onClick={onMobileClose}><X size={20} /></button>
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-          {items.map(({ label, path, icon: Icon }) => (
+          {navItems.map(({ label, path, icon: Icon }) => (
             <NavLink key={path} to={path} end={path === '/'} onClick={onMobileClose} title={collapsed ? label : undefined} className={({ isActive }) => `flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'} ${collapsed ? 'justify-center' : ''}`}>
               <Icon size={20} />{!collapsed && <span>{label}</span>}
             </NavLink>

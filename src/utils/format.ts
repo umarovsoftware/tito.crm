@@ -1,4 +1,4 @@
-export const formatMoney = (value: number, currency = 'so‘m') =>
+export const formatMoney = (value: number, currency: string = 'so‘m') =>
   `${new Intl.NumberFormat('uz-UZ', { maximumFractionDigits: 0 }).format(value)} ${currency}`;
 
 export const formatNumber = (value: number) => new Intl.NumberFormat('uz-UZ').format(value);

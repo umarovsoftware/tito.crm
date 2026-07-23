@@ -136,6 +136,27 @@ export interface AppSettings {
   darkMode: boolean;
 }
 
+export interface Employee {
+  id: number;
+  username: string;
+  ism: string;
+  familiya: string;
+  email: string;
+  faol: boolean;
+  createdAt: string;
+}
+
+export interface ActivityLog {
+  id: string;
+  foydalanuvchi: string;
+  foydalanuvchiId: number | null;
+  amal: string;
+  model: string;
+  obyekt: string;
+  izoh: string;
+  sana: string;
+}
+
 export interface AppData {
   perfumes: Perfume[];
   customers: Customer[];
@@ -146,6 +167,8 @@ export interface AppData {
   incomes: Income[];
   expenses: Expense[];
   settings: AppSettings;
+  employees: Employee[];
+  activityLogs: ActivityLog[];
 }
 
 export type DatePreset = 'today' | 'week' | 'month' | 'custom';

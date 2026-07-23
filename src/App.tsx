@@ -16,9 +16,17 @@ const ExpensesPage = lazy(() => import('./pages/ExpensesPage').then((m) => ({ de
 const ReportsPage = lazy(() => import('./pages/ReportsPage').then((m) => ({ default: m.ReportsPage })));
 const WarehousePage = lazy(() => import('./pages/WarehousePage').then((m) => ({ default: m.WarehousePage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
+const EmployeesPage = lazy(() => import('./pages/EmployeesPage').then((m) => ({ default: m.EmployeesPage })));
+const EmployeeDetailPage = lazy(() => import('./pages/EmployeeDetailPage').then((m) => ({ default: m.EmployeeDetailPage })));
+const ActivityLogPage = lazy(() => import('./pages/ActivityLogPage').then((m) => ({ default: m.ActivityLogPage })));
 
 function Loader() {
   return <div className="card grid min-h-64 place-items-center"><div className="text-center"><div className="mx-auto h-9 w-9 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600" /><p className="mt-3 text-sm text-slate-500">Sahifa yuklanmoqda...</p></div></div>;
+}
+
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  return user?.is_superuser ? <>{children}</> : <Navigate to="/" replace />;
 }
 
 export default function App() {
@@ -40,6 +48,9 @@ export default function App() {
           <Route path="hisobotlar" element={<ReportsPage />} />
           <Route path="ombor" element={<WarehousePage />} />
           <Route path="sozlamalar" element={<SettingsPage />} />
+          <Route path="hodimlar" element={<AdminRoute><EmployeesPage /></AdminRoute>} />
+          <Route path="hodimlar/:id" element={<AdminRoute><EmployeeDetailPage /></AdminRoute>} />
+          <Route path="loglar" element={<AdminRoute><ActivityLogPage /></AdminRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

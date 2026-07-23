@@ -1,9 +1,12 @@
 from datetime import timedelta
 from decimal import Decimal
+from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
-from .models import Customer, CustomerDebt, CustomerDebtEntry, Expense, Income, Payable, PayableEntry, Product, Sale, SaleItem, ShopSettings, StockReceipt
+from .models import ActivityLog, Customer, CustomerDebt, CustomerDebtEntry, Expense, Income, Payable, PayableEntry, Product, Sale, SaleItem, ShopSettings, StockReceipt
+
+User = get_user_model()
 
 
 class FrontendChoiceField(serializers.ChoiceField):
@@ -98,100 +101,6 @@ class StockReceiptSerializer(serializers.ModelSerializer):
         Expense.objects.filter(source=f"stock:{receipt.id}").delete()
         Expense.objects.create(category="Tovar xaridi", amount=receipt.quantity * receipt.purchase_price, date=receipt.received_on, note=f"{receipt.supplier}dan tovar xaridi", source=f"stock:{receipt.id}")
         return receipt
-
-
-class LegacySaleSerializer(serializers.ModelSerializer):
-    sotuvKodi = serializers.CharField(source="code", read_only=True)
-    saleTuri = FrontendChoiceField(source="sale_type", choices=SALE_TYPE_CHOICES)
-    perfumeId = serializers.PrimaryKeyRelatedField(source="product", queryset=Product.objects.all())
-    customerId = serializers.PrimaryKeyRelatedField(source="customer", queryset=Customer.objects.all(), required=False, allow_null=True)
-    xaridorKodi = serializers.CharField(source="guest_code", read_only=True)
-    miqdor = serializers.IntegerField(source="quantity", min_value=1)
-    sotuvNarxi = serializers.DecimalField(source="unit_price", max_digits=14, decimal_places=2, min_value=Decimal("0"))
-    tolovTuri = FrontendChoiceField(source="payment_type", choices=PAYMENT_CHOICES)
-    ulgurjiSavdo = serializers.BooleanField(source="wholesale", required=False)
-    yetkazibBerish = serializers.BooleanField(source="delivery", required=False)
-    yetkazibBerishManzili = serializers.CharField(source="delivery_address", required=False, allow_blank=True)
-    sana = serializers.DateField(source="sold_on")
-    createdAt = serializers.DateTimeField(source="created_at", read_only=True)
-
-    class Meta:
-        model = Sale
-        fields = ("id", "sotuvKodi", "saleTuri", "perfumeId", "customerId", "xaridorKodi", "miqdor", "sotuvNarxi", "tolovTuri", "ulgurjiSavdo", "yetkazibBerish", "yetkazibBerishManzili", "sana", "createdAt")
-        read_only_fields = ("id", "sotuvKodi", "xaridorKodi", "createdAt")
-
-    def validate(self, attrs):
-        if attrs.get("sale_type") == Sale.SaleType.REGULAR and not attrs.get("customer"):
-            raise serializers.ValidationError({"customerId": "Doimiy mijoz uchun mijoz tanlanishi kerak."})
-        if attrs.get("sale_type") == Sale.SaleType.GUEST and attrs.get("payment_type") == Sale.PaymentType.DEBT:
-            raise serializers.ValidationError({"tolovTuri": "Tasodifiy xaridorga qarzga sotuv mumkin emas."})
-        if attrs.get("delivery") and not attrs.get("delivery_address", "").strip():
-            raise serializers.ValidationError({"yetkazibBerishManzili": "Yetkazib berish manzilini kiriting."})
-        return attrs
-
-    @transaction.atomic
-    def create(self, validated_data):
-        product = Product.objects.select_for_update().get(pk=validated_data["product"].pk)
-        if validated_data["quantity"] > product.quantity:
-            raise serializers.ValidationError({"miqdor": f"Qoldiq yetarli emas. Mavjud: {product.quantity} dona."})
-        sold_on = validated_data["sold_on"]
-        token = timezone.now().strftime("%H%M%S%f")[-8:]
-        validated_data["code"] = f"STV-{sold_on:%Y%m%d}-{token}"
-        if validated_data["sale_type"] == Sale.SaleType.GUEST:
-            validated_data.update(customer=None, guest_code=f"TX-{sold_on:%Y%m%d}-{token}", wholesale=False, delivery=False, delivery_address="")
-        sale = Sale.objects.create(**validated_data)
-        product.quantity -= sale.quantity
-        product.save(update_fields=["quantity", "updated_at"])
-        if sale.payment_type == Sale.PaymentType.DEBT:
-            debt, _ = CustomerDebt.objects.select_for_update().get_or_create(customer=sale.customer, defaults={"total_amount": 0, "paid_amount": 0, "due_date": sold_on + timedelta(days=30)})
-            debt.total_amount += sale.total
-            debt.due_date = sold_on + timedelta(days=30)
-            debt.save(update_fields=["total_amount", "due_date", "updated_at"])
-            CustomerDebtEntry.objects.create(debt=debt, entry_type="charge", amount=sale.total, date=sold_on, note=str(product), sale=sale)
-        else:
-            buyer = sale.customer.full_name if sale.customer else sale.guest_code
-            Income.objects.create(category="Sotuv", amount=sale.total, date=sold_on, note=f"{sale.code} · {buyer} · {product}", source=f"sale:{sale.id}")
-        return sale
-
-    @transaction.atomic
-    def update(self, instance, validated_data):
-        old_product = Product.objects.select_for_update().get(pk=instance.product_id)
-        old_product.quantity += instance.quantity
-        old_product.save(update_fields=["quantity", "updated_at"])
-        Income.objects.filter(source=f"sale:{instance.id}").delete()
-        try:
-            old_entry = instance.debt_entry
-        except CustomerDebtEntry.DoesNotExist:
-            old_entry = None
-        if old_entry:
-            old_debt = CustomerDebt.objects.select_for_update().get(pk=old_entry.debt_id)
-            old_debt.total_amount -= old_entry.amount
-            old_debt.save(update_fields=["total_amount", "updated_at"])
-            old_entry.delete()
-        sale = super().update(instance, validated_data)
-        product = Product.objects.select_for_update().get(pk=sale.product_id)
-        if sale.quantity > product.quantity:
-            raise serializers.ValidationError({"miqdor": f"Qoldiq yetarli emas. Mavjud: {product.quantity} dona."})
-        if sale.sale_type == Sale.SaleType.GUEST:
-            sale.customer = None
-            sale.wholesale = False
-            sale.delivery = False
-            sale.delivery_address = ""
-            if not sale.guest_code:
-                sale.guest_code = f"TX-{sale.sold_on:%Y%m%d}-{timezone.now():%H%M%S}"
-            sale.save()
-        product.quantity -= sale.quantity
-        product.save(update_fields=["quantity", "updated_at"])
-        if sale.payment_type == Sale.PaymentType.DEBT:
-            debt, _ = CustomerDebt.objects.select_for_update().get_or_create(customer=sale.customer, defaults={"total_amount": 0, "paid_amount": 0, "due_date": sale.sold_on + timedelta(days=30)})
-            debt.total_amount += sale.total
-            debt.due_date = sale.sold_on + timedelta(days=30)
-            debt.save(update_fields=["total_amount", "due_date", "updated_at"])
-            CustomerDebtEntry.objects.create(debt=debt, entry_type="charge", amount=sale.total, date=sale.sold_on, note=str(product), sale=sale)
-        else:
-            buyer = sale.customer.full_name if sale.customer else sale.guest_code
-            Income.objects.create(category="Sotuv", amount=sale.total, date=sale.sold_on, note=f"{sale.code} · {buyer} · {product}", source=f"sale:{sale.id}")
-        return sale
 
 
 class SaleItemSerializer(serializers.ModelSerializer):
@@ -431,3 +340,64 @@ class ShopSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = ShopSettings
         fields = ("dokonNomi", "telefon", "manzil", "valyuta", "darkMode")
+
+
+class EmployeeSerializer(serializers.ModelSerializer):
+    ism = serializers.CharField(source="first_name", required=False, allow_blank=True)
+    familiya = serializers.CharField(source="last_name", required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    parol = serializers.CharField(source="password", write_only=True, required=False, min_length=8)
+    faol = serializers.BooleanField(source="is_active", required=False, default=True)
+    createdAt = serializers.DateTimeField(source="date_joined", read_only=True)
+
+    class Meta:
+        model = User
+        fields = ("id", "username", "ism", "familiya", "email", "parol", "faol", "createdAt")
+        read_only_fields = ("id", "createdAt")
+
+    def validate_username(self, value):
+        queryset = User.objects.filter(username=value)
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise serializers.ValidationError("Bu login band.")
+        return value
+
+    def create(self, validated_data):
+        password = validated_data.pop("password", None)
+        if not password:
+            raise serializers.ValidationError({"parol": "Parol kiritilishi shart."})
+        user = User(**validated_data)
+        user.is_staff = False
+        user.is_superuser = False
+        user.set_password(password)
+        user.save()
+        return user
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop("password", None)
+        instance = super().update(instance, validated_data)
+        if password:
+            instance.set_password(password)
+            instance.save(update_fields=["password"])
+        return instance
+
+
+class ActivityLogSerializer(serializers.ModelSerializer):
+    foydalanuvchi = serializers.SerializerMethodField()
+    foydalanuvchiId = serializers.IntegerField(source="user_id", read_only=True)
+    amal = serializers.CharField(source="get_action_display", read_only=True)
+    model = serializers.CharField(source="model_name", read_only=True)
+    obyekt = serializers.CharField(source="object_repr", read_only=True)
+    izoh = serializers.CharField(source="detail", read_only=True)
+    sana = serializers.DateTimeField(source="created_at", read_only=True)
+
+    class Meta:
+        model = ActivityLog
+        fields = ("id", "foydalanuvchi", "foydalanuvchiId", "amal", "model", "obyekt", "izoh", "sana")
+
+    def get_foydalanuvchi(self, obj):
+        if not obj.user_id:
+            return "Tizim"
+        full_name = f"{obj.user.first_name} {obj.user.last_name}".strip()
+        return full_name or obj.user.username

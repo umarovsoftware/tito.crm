@@ -1,4 +1,4 @@
-from datetime import date
+from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import F, Sum
 from django.db.models.deletion import ProtectedError
@@ -8,31 +8,69 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import Customer, CustomerDebt, CustomerDebtEntry, Expense, Income, Payable, PayableEntry, Product, Sale, SaleItem, ShopSettings, StockReceipt
+from .models import ActivityLog, Customer, CustomerDebt, CustomerDebtEntry, Expense, Income, Payable, PayableEntry, Product, Sale, SaleItem, ShopSettings, StockReceipt
+from .permissions import IsSuperUser
 from .serializers import (
-    CustomerDebtSerializer, CustomerSerializer, ExpenseSerializer, IncomeSerializer,
-    PayableSerializer, PaymentSerializer, ProductSerializer, SaleSerializer,
+    ActivityLogSerializer, CustomerDebtSerializer, CustomerSerializer, EmployeeSerializer, ExpenseSerializer,
+    IncomeSerializer, PayableSerializer, PaymentSerializer, ProductSerializer, SaleSerializer,
     ShopSettingsSerializer, StockReceiptSerializer,
 )
 
+User = get_user_model()
 
-class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.all()
-    serializer_class = ProductSerializer
-    search_fields = ("brand_name", "name", "barcode")
-    ordering_fields = ("brand_name", "name", "quantity", "created_at")
+MODEL_LABELS = {
+    "Product": "Parfyum",
+    "Customer": "Mijoz",
+    "StockReceipt": "Tovar kirimi",
+    "Sale": "Sotuv",
+    "CustomerDebt": "Mijoz qarzi",
+    "Payable": "Qarzim",
+    "Income": "Kirim",
+    "Expense": "Chiqim",
+    "ShopSettings": "Sozlamalar",
+    "User": "Hodim",
+}
+
+
+def log_activity(request, action_type, instance, detail=""):
+    user = request.user if getattr(request, "user", None) and request.user.is_authenticated else None
+    model_label = MODEL_LABELS.get(instance.__class__.__name__, instance.__class__.__name__)
+    ActivityLog.objects.create(user=user, action=action_type, model_name=model_label, object_repr=str(instance)[:255], detail=detail)
+
+
+class AuditedModelViewSet(viewsets.ModelViewSet):
+    """Logs every create/update/delete to ActivityLog so an admin can audit employee actions."""
+    protected_error_message = "Bu yozuvda bog'liq operatsiyalar bor, uni o'chirib bo'lmaydi."
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        log_activity(self.request, ActivityLog.Action.CREATE, instance)
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        log_activity(self.request, ActivityLog.Action.UPDATE, instance)
 
     def perform_destroy(self, instance):
         try:
             instance.delete()
         except ProtectedError:
-            raise ValidationError("Bu mahsulotda operatsiyalar bor, uni o'chirib bo'lmaydi.")
+            raise ValidationError(self.protected_error_message)
+        log_activity(self.request, ActivityLog.Action.DELETE, instance)
 
 
-class CustomerViewSet(viewsets.ModelViewSet):
+class ProductViewSet(AuditedModelViewSet):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+    search_fields = ("brand_name", "name", "barcode")
+    ordering_fields = ("brand_name", "name", "quantity", "created_at")
+    protected_error_message = "Bu mahsulotda operatsiyalar bor, uni o'chirib bo'lmaydi."
+
+
+class CustomerViewSet(AuditedModelViewSet):
     queryset = Customer.objects.all()
     serializer_class = CustomerSerializer
     search_fields = ("full_name", "phone")
+    protected_error_message = "Savdo yoki qarz tarixi mavjud mijozni o'chirib bo'lmaydi."
 
     @action(detail=True, methods=["get"])
     def debt(self, request, pk=None):
@@ -44,7 +82,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
         return Response(CustomerDebtSerializer(debt).data)
 
 
-class DebtViewSet(viewsets.ModelViewSet):
+class DebtViewSet(AuditedModelViewSet):
     queryset = CustomerDebt.objects.select_related("customer").prefetch_related("entries")
     serializer_class = CustomerDebtSerializer
     http_method_names = ["get", "post", "patch", "head", "options"]
@@ -69,10 +107,11 @@ class DebtViewSet(viewsets.ModelViewSet):
             category="Qarz to'lovi", amount=amount, date=entry.date,
             note=f"{customer.full_name}: {entry.note or 'qarz to’lovi'}", source=f"debt-payment:{entry.id}",
         )
+        log_activity(request, ActivityLog.Action.UPDATE, debt, detail=f"To'lov qabul qilindi: {amount}")
         return Response(CustomerDebtSerializer(debt).data)
 
 
-class StockReceiptViewSet(viewsets.ModelViewSet):
+class StockReceiptViewSet(AuditedModelViewSet):
     queryset = StockReceipt.objects.select_related("product")
     serializer_class = StockReceiptSerializer
     http_method_names = ["get", "post", "put", "patch", "delete", "head", "options"]
@@ -86,9 +125,10 @@ class StockReceiptViewSet(viewsets.ModelViewSet):
         product.save(update_fields=["quantity", "updated_at"])
         Expense.objects.filter(source=f"stock:{instance.id}").delete()
         instance.delete()
+        log_activity(self.request, ActivityLog.Action.DELETE, instance)
 
 
-class SaleViewSet(viewsets.ModelViewSet):
+class SaleViewSet(AuditedModelViewSet):
     queryset = Sale.objects.select_related("customer").prefetch_related("items__product")
     serializer_class = SaleSerializer
     http_method_names = ["get", "post", "put", "patch", "delete", "head", "options"]
@@ -110,9 +150,10 @@ class SaleViewSet(viewsets.ModelViewSet):
             debt.total_amount -= entry.amount
             debt.save(update_fields=["total_amount", "updated_at"])
         instance.delete()
+        log_activity(self.request, ActivityLog.Action.DELETE, instance)
 
 
-class PayableViewSet(viewsets.ModelViewSet):
+class PayableViewSet(AuditedModelViewSet):
     queryset = Payable.objects.all()
     serializer_class = PayableSerializer
     search_fields = ("supplier", "phone")
@@ -121,6 +162,7 @@ class PayableViewSet(viewsets.ModelViewSet):
         payment_ids = list(instance.entries.filter(entry_type="payment").values_list("id", flat=True))
         Expense.objects.filter(source__in=[f"payable-payment:{entry_id}" for entry_id in payment_ids]).delete()
         instance.delete()
+        log_activity(self.request, ActivityLog.Action.DELETE, instance)
 
     @action(detail=True, methods=["post"], url_path="payment")
     @transaction.atomic
@@ -141,10 +183,11 @@ class PayableViewSet(viewsets.ModelViewSet):
             category=payable.category, amount=amount, date=entry.date,
             note=f"{payable.supplier}: {entry.note or 'qarz to’lovi'}", source=f"payable-payment:{entry.id}",
         )
+        log_activity(request, ActivityLog.Action.UPDATE, payable, detail=f"To'lov qilindi: {amount}")
         return Response(PayableSerializer(payable).data)
 
 
-class IncomeViewSet(viewsets.ModelViewSet):
+class IncomeViewSet(AuditedModelViewSet):
     queryset = Income.objects.all()
     serializer_class = IncomeSerializer
     search_fields = ("category", "note")
@@ -152,15 +195,17 @@ class IncomeViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         if serializer.instance.source:
             raise ValidationError("Avtomatik kirimni tahrirlab bo'lmaydi.")
-        serializer.save()
+        instance = serializer.save()
+        log_activity(self.request, ActivityLog.Action.UPDATE, instance)
 
     def perform_destroy(self, instance):
         if instance.source:
             raise ValidationError("Avtomatik kirim manba operatsiyasi bilan bog'langan.")
         instance.delete()
+        log_activity(self.request, ActivityLog.Action.DELETE, instance)
 
 
-class ExpenseViewSet(viewsets.ModelViewSet):
+class ExpenseViewSet(AuditedModelViewSet):
     queryset = Expense.objects.all()
     serializer_class = ExpenseSerializer
     search_fields = ("category", "note")
@@ -168,12 +213,36 @@ class ExpenseViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         if serializer.instance.source:
             raise ValidationError("Avtomatik chiqimni tahrirlab bo'lmaydi.")
-        serializer.save()
+        instance = serializer.save()
+        log_activity(self.request, ActivityLog.Action.UPDATE, instance)
 
     def perform_destroy(self, instance):
         if instance.source:
             raise ValidationError("Bu chiqim manba operatsiyasi bilan bog'langan.")
         instance.delete()
+        log_activity(self.request, ActivityLog.Action.DELETE, instance)
+
+
+class EmployeeViewSet(AuditedModelViewSet):
+    """Super admin manages employee (hodim) accounts here — logins/passwords are never self-serve."""
+    queryset = User.objects.filter(is_superuser=False).order_by("-date_joined")
+    serializer_class = EmployeeSerializer
+    permission_classes = [IsSuperUser]
+    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
+    protected_error_message = "Bu hodimni o'chirib bo'lmaydi."
+
+    def perform_destroy(self, instance):
+        if instance.pk == self.request.user.pk:
+            raise ValidationError("O'zingizni o'chira olmaysiz.")
+        super().perform_destroy(instance)
+
+
+class ActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """Read-only feed the super admin uses to audit what every employee changed."""
+    queryset = ActivityLog.objects.select_related("user").all()
+    serializer_class = ActivityLogSerializer
+    permission_classes = [IsSuperUser]
+    search_fields = ("model_name", "object_repr", "detail", "user__username", "user__first_name", "user__last_name")
 
 
 class SettingsView(APIView):
@@ -186,45 +255,8 @@ class SettingsView(APIView):
     def put(self, request):
         serializer = ShopSettingsSerializer(self.get_object(), data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data)
-
-
-class DemoResetView(APIView):
-    """Development-only demo reset used by the existing settings screen."""
-    @transaction.atomic
-    def post(self, request):
-        CustomerDebtEntry.objects.all().delete()
-        PayableEntry.objects.all().delete()
-        Sale.objects.all().delete()
-        StockReceipt.objects.all().delete()
-        Income.objects.all().delete()
-        Expense.objects.all().delete()
-        CustomerDebt.objects.all().delete()
-        Payable.objects.all().delete()
-        Customer.objects.all().delete()
-        Product.objects.all().delete()
-        samples = [
-            ("Dior", "Sauvage Elixir", "men", 60, "100000000001", 1450000, 1890000, 12, 4),
-            ("Chanel", "Coco Mademoiselle", "women", 100, "100000000002", 1650000, 2160000, 8, 4),
-            ("Lattafa", "Khamrah", "unisex", 100, "100000000003", 320000, 490000, 28, 8),
-        ]
-        Product.objects.bulk_create([
-            Product(brand_name=brand, name=name, category=category, volume_ml=volume, barcode=barcode,
-                    purchase_price=purchase, sale_price=sale, quantity=quantity, minimum_quantity=minimum)
-            for brand, name, category, volume, barcode, purchase, sale, quantity, minimum in samples
-        ])
-        Customer.objects.bulk_create([
-            Customer(full_name="Akmal Rahimov", phone="+998 90 123 45 67", address="Yunusobod"),
-            Customer(full_name="Dilnoza Karimova", phone="+998 93 221 10 20", address="Chilonzor"),
-        ])
-        ShopSettings.objects.update_or_create(pk=1, defaults={"shop_name": "Aroma House", "phone": "+998 90 555 55 55", "address": "Toshkent shahri", "currency": "so'm", "dark_mode": False})
-        return Response({"detail": "Demo ma'lumotlar tiklandi."})
-
-    def patch(self, request):
-        serializer = ShopSettingsSerializer(self.get_object(), data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
+        instance = serializer.save()
+        log_activity(request, ActivityLog.Action.UPDATE, instance)
         return Response(serializer.data)
 
 

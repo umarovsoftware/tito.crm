@@ -18,7 +18,7 @@ export function Header({ onMenu }: { onMenu: () => void }) {
         <input value={query} onChange={(e) => setQuery(e.target.value)} className="input pl-10" placeholder="Parfyum yoki barcode qidirish..." />
       </form>
       <div className="ml-auto flex items-center gap-2">
-        <button onClick={() => updateSettings({ ...data.settings, darkMode: !data.settings.darkMode })} className="rounded-xl border p-2.5 hover:bg-slate-50 dark:hover:bg-slate-800" title="Tungi rejim">{data.settings.darkMode ? <Sun size={20} /> : <Moon size={20} />}</button>
+        <button onClick={() => void updateSettings({ ...data.settings, darkMode: !data.settings.darkMode })} className="rounded-xl border p-2.5 hover:bg-slate-50 dark:hover:bg-slate-800" title="Tungi rejim">{data.settings.darkMode ? <Sun size={20} /> : <Moon size={20} />}</button>
         <div className="hidden text-right sm:block"><p className="text-sm font-semibold">{user?.first_name || user?.username || 'Administrator'}</p><p className="text-xs text-slate-500">Boshqaruv paneli</p></div>
         <div className="grid h-10 w-10 place-items-center rounded-full bg-blue-100 font-bold text-blue-700 dark:bg-blue-950 dark:text-blue-300">{(user?.username?.slice(0, 2) || 'AD').toUpperCase()}</div>
         <button onClick={() => void logout()} className="rounded-xl border p-2.5 text-red-600 hover:bg-red-50" title="Chiqish"><LogOut size={18} /></button>

@@ -1,7 +1,7 @@
 from decimal import Decimal
 from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase
-from .models import Expense, Income, Product
+from .models import ActivityLog, Expense, Income, Product
 
 
 class StoreApiTests(APITestCase):
@@ -86,5 +86,37 @@ class StoreApiTests(APITestCase):
         response = self.client.post("/api/auth/login/", {"username": "tester", "password": "strong-pass-123"}, format="json")
         self.assertEqual(response.status_code, 200)
         self.assertIn("access", response.data)
+        self.assertFalse(response.data["user"]["is_superuser"])
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
         self.assertEqual(self.client.get("/api/auth/me/").status_code, 200)
+
+
+class EmployeeAndActivityLogTests(APITestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_superuser(username="boss", password="super-secret-1", email="boss@example.com")
+        self.employee = get_user_model().objects.create_user(username="hodim1", password="hodim-pass-1")
+
+    def test_only_super_admin_can_manage_employees(self):
+        self.client.force_authenticate(user=self.employee)
+        self.assertEqual(self.client.get("/api/employees/").status_code, 403)
+        self.assertEqual(self.client.get("/api/activity-logs/").status_code, 403)
+
+        self.client.force_authenticate(user=self.admin)
+        created = self.client.post("/api/employees/", {
+            "username": "yangi_hodim", "ism": "Aziz", "familiya": "Karimov", "parol": "boshlangich-parol",
+        }, format="json")
+        self.assertEqual(created.status_code, 201, created.data)
+        self.assertTrue(get_user_model().objects.get(username="yangi_hodim").check_password("boshlangich-parol"))
+        self.assertFalse(get_user_model().objects.get(username="yangi_hodim").is_superuser)
+
+    def test_employee_actions_are_logged_and_visible_to_admin(self):
+        self.client.force_authenticate(user=self.employee)
+        response = self.client.post("/api/customers/", {"ism": "Nodira", "telefon": "+998901112233", "manzil": "Chilonzor"}, format="json")
+        self.assertEqual(response.status_code, 201)
+
+        self.client.force_authenticate(user=self.admin)
+        logs = self.client.get("/api/activity-logs/")
+        self.assertEqual(logs.status_code, 200)
+        entry = next(item for item in logs.data if item["obyekt"] == "Nodira")
+        self.assertEqual(entry["foydalanuvchi"], "hodim1")
+        self.assertEqual(entry["amal"], ActivityLog.Action.CREATE.label)
