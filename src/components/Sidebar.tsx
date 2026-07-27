@@ -32,7 +32,7 @@ export function Sidebar({ mobileOpen, onMobileClose, collapsed, onCollapse }: { 
       <aside className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r bg-white transition-all dark:bg-slate-900 ${collapsed ? 'w-20' : 'w-72'} ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <div className="flex h-20 items-center justify-between border-b px-5">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-blue-600 text-lg font-black text-white">A</div>
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-blue-600 text-lg font-black text-white">{(data.settings.dokonNomi?.[0] ?? 'A').toUpperCase()}</div>
             {!collapsed && <div className="min-w-0"><p className="truncate font-bold">{data.settings.dokonNomi}</p><p className="text-xs text-slate-500">Parfyum boshqaruvi</p></div>}
           </div>
           <button className="rounded-xl p-2 hover:bg-slate-100 lg:hidden dark:hover:bg-slate-800" onClick={onMobileClose}><X size={20} /></button>
