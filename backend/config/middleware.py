@@ -10,11 +10,12 @@ class DevelopmentCorsMiddleware:
 
     def __call__(self, request):
         origin = request.headers.get("Origin")
-        if request.method == "OPTIONS" and origin in settings.CORS_ALLOWED_ORIGINS:
+        allowed = "*" in settings.CORS_ALLOWED_ORIGINS or origin in settings.CORS_ALLOWED_ORIGINS
+        if request.method == "OPTIONS" and allowed:
             response = HttpResponse(status=204)
         else:
             response = self.get_response(request)
-        if origin in settings.CORS_ALLOWED_ORIGINS:
+        if allowed and origin:
             response["Access-Control-Allow-Origin"] = origin
             response["Vary"] = "Origin"
             response["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
