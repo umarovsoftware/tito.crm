@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? 'https://68.183.16.36/api').replace(/\/$/, '');
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? 'https://68-183-16-36.nip.io/api').replace(/\/$/, '');
 export type AuthUser = { id: number; username: string; first_name: string; last_name: string; email: string; is_staff?: boolean; is_superuser?: boolean };
 type AuthContextValue = { user: AuthUser | null; login: (username: string, password: string) => Promise<void>; logout: () => Promise<void> };
 const AuthContext = createContext<AuthContextValue | null>(null);

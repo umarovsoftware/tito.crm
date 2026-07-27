@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import type { ActivityLog, AppData, AppSettings, Customer, Employee, Expense, ExpenseCategory, Income, PayableDebt, Perfume, Sale, StockIn } from '../types';
 import { useAuth } from '../auth/AuthContext';
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? 'https://68.183.16.36/api').replace(/\/$/, '');
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? 'https://68-183-16-36.nip.io/api').replace(/\/$/, '');
 const emptyData: AppData = {
   perfumes: [], customers: [], stockIns: [], sales: [], debts: [], payables: [], incomes: [], expenses: [],
   settings: { dokonNomi: 'Aroma House', telefon: '', manzil: '', valyuta: "so'm", darkMode: false },
