@@ -4,6 +4,7 @@ import { DebtBadge } from '../components/Badge';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { EmptyState } from '../components/EmptyState';
 import { Modal } from '../components/Modal';
+import { NumberInput } from '../components/NumberInput';
 import { PageHeader } from '../components/PageHeader';
 import { Pagination } from '../components/Pagination';
 import { useToast } from '../components/Toast';
@@ -11,6 +12,7 @@ import { useAppStore } from '../store/AppStore';
 import type { ExpenseCategory, PayableDebt } from '../types';
 import { today } from '../utils/date';
 import { formatDate, formatMoney } from '../utils/format';
+import { numberOrZero, type NumberInputValue } from '../utils/numberInput';
 
 const categories: ExpenseCategory[] = ['Tovar xaridi', 'Ijara', 'Maosh', 'Transport', 'Reklama', 'Soliq', 'Boshqa'];
 const PAGE_SIZE = 8;
@@ -20,7 +22,7 @@ interface FormState {
   yetkazibBeruvchi: string;
   telefon: string;
   kategoriya: ExpenseCategory;
-  jamiQarz: number;
+  jamiQarz: NumberInputValue;
   sana: string;
   muddat: string;
   izoh: string;
@@ -30,7 +32,7 @@ const makeInitial = (): FormState => ({
   yetkazibBeruvchi: '',
   telefon: '',
   kategoriya: 'Tovar xaridi',
-  jamiQarz: 0,
+  jamiQarz: '',
   sana: today(),
   muddat: today(),
   izoh: '',
@@ -50,7 +52,7 @@ export function MyDebtsPage() {
   const [form, setForm] = useState<FormState>(makeInitial);
   const [formOpen, setFormOpen] = useState(false);
   const [paymentDebt, setPaymentDebt] = useState<PayableDebt | null>(null);
-  const [paymentAmount, setPaymentAmount] = useState(0);
+  const [paymentAmount, setPaymentAmount] = useState<NumberInputValue>('');
   const [paymentDate, setPaymentDate] = useState(today());
   const [paymentNote, setPaymentNote] = useState('');
   const [historyDebt, setHistoryDebt] = useState<PayableDebt | null>(null);
@@ -112,8 +114,10 @@ export function MyDebtsPage() {
 
   const submitDebt = async (event: FormEvent) => {
     event.preventDefault();
+    const jamiQarz = numberOrZero(form.jamiQarz);
+    if (jamiQarz <= 0) return showToast('Qarz summasini to‘g‘ri kiriting.', 'warning');
     setSavingDebt(true);
-    const result = await savePayable(form);
+    const result = await savePayable({ ...form, jamiQarz });
     setSavingDebt(false);
     if (!result.ok) return showToast(result.message, 'error');
     showToast(form.id ? 'Qarz ma’lumotlari yangilandi.' : 'Yangi qarzim qo‘shildi.');
@@ -131,14 +135,15 @@ export function MyDebtsPage() {
   const submitPayment = async (event: FormEvent) => {
     event.preventDefault();
     if (!paymentDebt) return;
-    if (paymentAmount <= 0 || paymentAmount > paymentDebt.qolganQarz) return showToast('To‘lov summasini to‘g‘ri kiriting.', 'warning');
+    const amount = numberOrZero(paymentAmount);
+    if (amount <= 0 || amount > paymentDebt.qolganQarz) return showToast('To‘lov summasini to‘g‘ri kiriting.', 'warning');
     setSavingPayment(true);
-    const result = await addPayablePayment(paymentDebt.id, paymentAmount, paymentDate, paymentNote);
+    const result = await addPayablePayment(paymentDebt.id, amount, paymentDate, paymentNote);
     setSavingPayment(false);
     if (!result.ok) return showToast(result.message, 'error');
     showToast('Qarz to‘lovi saqlandi va chiqimga qo‘shildi.');
     setPaymentDebt(null);
-    setPaymentAmount(0);
+    setPaymentAmount('');
     setPaymentNote('');
   };
 
@@ -259,7 +264,7 @@ export function MyDebtsPage() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div><label className="label">Qarz kategoriyasi</label><select className="input" value={form.kategoriya} onChange={(event) => setForm({ ...form, kategoriya: event.target.value as ExpenseCategory })}>{categories.map((category) => <option key={category}>{category}</option>)}</select></div>
-            <div><label className="label">Jami qarz *</label><input className="input" type="number" onFocus={(e) => e.target.select()} min="1" value={form.jamiQarz} onChange={(event) => setForm({ ...form, jamiQarz: Number(event.target.value) })} /></div>
+            <div><label className="label">Jami qarz *</label><NumberInput min="1" value={form.jamiQarz} onValueChange={(value) => setForm({ ...form, jamiQarz: value })} /></div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div><label className="label">Qarz olingan sana *</label><input className="input" type="date" value={form.sana} onChange={(event) => setForm({ ...form, sana: event.target.value })} /></div>
@@ -274,7 +279,7 @@ export function MyDebtsPage() {
       <Modal open={Boolean(paymentDebt)} title="Qarzimni to‘lash" onClose={() => setPaymentDebt(null)}>
         <form onSubmit={submitPayment} className="space-y-4">
           {paymentDebt && <div className="rounded-2xl bg-red-50 p-4 dark:bg-red-950/30"><p className="font-semibold">{paymentDebt.yetkazibBeruvchi}</p><p className="mt-1 text-sm text-red-600">Qolgan qarz: {money(paymentDebt.qolganQarz)}</p></div>}
-          <div><label className="label">To‘lov summasi *</label><input className="input" type="number" onFocus={(e) => e.target.select()} min="1" max={paymentDebt?.qolganQarz} value={paymentAmount} onChange={(event) => setPaymentAmount(Number(event.target.value))} /></div>
+          <div><label className="label">To‘lov summasi *</label><NumberInput min="1" max={paymentDebt?.qolganQarz} value={paymentAmount} onValueChange={setPaymentAmount} /></div>
           <div><label className="label">To‘lov sanasi *</label><input className="input" type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} /></div>
           <div><label className="label">Izoh</label><input className="input" value={paymentNote} onChange={(event) => setPaymentNote(event.target.value)} placeholder="Masalan: karta orqali" /></div>
           <div className="flex justify-end gap-3"><button type="button" className="btn-secondary" onClick={() => setPaymentDebt(null)} disabled={savingPayment}>Bekor qilish</button><button className="btn-primary" disabled={savingPayment}>{savingPayment ? 'Saqlanmoqda...' : 'To‘lovni saqlash'}</button></div>

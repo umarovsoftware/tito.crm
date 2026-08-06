@@ -1,7 +1,18 @@
-import type { Sale, SaleType } from '../types';
+import type { Sale, SaleItem, SaleType } from '../types';
 import { today } from './date';
+import type { NumberInputValue } from './numberInput';
 
-export type SaleFormState = Omit<Sale, 'id' | 'createdAt' | 'sotuvKodi' | 'xaridorKodi' | 'jamiSumma'> & { id?: string; sotuvKodi?: string; xaridorKodi?: string };
+export type SaleFormItem = Omit<SaleItem, 'miqdor' | 'sotuvNarxi'> & {
+  miqdor: NumberInputValue;
+  sotuvNarxi: NumberInputValue;
+};
+
+export type SaleFormState = Omit<Sale, 'id' | 'createdAt' | 'sotuvKodi' | 'xaridorKodi' | 'jamiSumma' | 'items'> & {
+  id?: string;
+  sotuvKodi?: string;
+  xaridorKodi?: string;
+  items: SaleFormItem[];
+};
 
 export const createInitialSale = (saleTuri: SaleType = 'Doimiy mijoz'): SaleFormState => ({
   saleTuri, customerId: '', xaridorKodi: '', items: [], tolovTuri: 'Naqd', ulgurjiSavdo: false,

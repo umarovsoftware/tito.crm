@@ -3,12 +3,14 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { DebtBadge } from '../components/Badge';
 import { EmptyState } from '../components/EmptyState';
 import { Modal } from '../components/Modal';
+import { NumberInput } from '../components/NumberInput';
 import { PageHeader } from '../components/PageHeader';
 import { useToast } from '../components/Toast';
 import { useAppStore } from '../store/AppStore';
 import type { Debt } from '../types';
 import { today } from '../utils/date';
 import { formatDate, formatMoney } from '../utils/format';
+import { numberOrZero, type NumberInputValue } from '../utils/numberInput';
 
 export function DebtorsPage() {
   const { data, addDebtPayment, updateDebt } = useAppStore();
@@ -18,7 +20,7 @@ export function DebtorsPage() {
   const [status, setStatus] = useState('Barchasi');
   const [selected, setSelected] = useState<Debt | null>(null);
   const [history, setHistory] = useState<Debt | null>(null);
-  const [amount, setAmount] = useState(0);
+  const [amount, setAmount] = useState<NumberInputValue>('');
   const [date, setDate] = useState(today());
   const [note, setNote] = useState('');
   const [dueDebt, setDueDebt] = useState<Debt | null>(null);
@@ -31,14 +33,15 @@ export function DebtorsPage() {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!selected) return;
-    if (amount <= 0 || amount > selected.qolganQarz) return showToast('To‘lov summasini to‘g‘ri kiriting.', 'warning');
+    const paymentAmount = numberOrZero(amount);
+    if (paymentAmount <= 0 || paymentAmount > selected.qolganQarz) return showToast('To‘lov summasini to‘g‘ri kiriting.', 'warning');
     setSavingPayment(true);
-    const result = await addDebtPayment(selected.id, amount, date, note);
+    const result = await addDebtPayment(selected.id, paymentAmount, date, note);
     setSavingPayment(false);
     if (!result.ok) return showToast(result.message, 'error');
     showToast('Qarz to‘lovi saqlandi va real kirimga qo‘shildi.');
     setSelected(null);
-    setAmount(0);
+    setAmount('');
     setNote('');
   };
   const saveDue = async () => {
@@ -117,7 +120,7 @@ export function DebtorsPage() {
       <Modal open={Boolean(selected)} title="Qarz to‘lovi qo‘shish" onClose={() => setSelected(null)}>
         <form onSubmit={submit} className="space-y-4">
           {selected && <div className="rounded-2xl bg-red-50 p-4 dark:bg-red-950/30"><p className="font-semibold">{selected.mijozNomi}</p><p className="mt-1 text-sm text-red-600">Qolgan qarz: {money(selected.qolganQarz)}</p></div>}
-          <div><label className="label">To‘lov summasi *</label><input className="input" type="number" onFocus={(e) => e.target.select()} min="1" max={selected?.qolganQarz} value={amount} onChange={(e) => setAmount(Number(e.target.value))} /></div>
+          <div><label className="label">To‘lov summasi *</label><NumberInput min="1" max={selected?.qolganQarz} value={amount} onValueChange={setAmount} /></div>
           <div><label className="label">Sana</label><input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
           <div><label className="label">Izoh</label><input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Masalan: karta orqali" /></div>
           <div className="flex justify-end gap-3"><button type="button" className="btn-secondary" onClick={() => setSelected(null)} disabled={savingPayment}>Bekor qilish</button><button className="btn-primary" disabled={savingPayment}>{savingPayment ? 'Saqlanmoqda...' : 'To‘lovni saqlash'}</button></div>

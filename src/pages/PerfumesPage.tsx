@@ -5,6 +5,7 @@ import { BarcodeScannerModal } from '../components/BarcodeScannerModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { EmptyState } from '../components/EmptyState';
 import { Modal } from '../components/Modal';
+import { NumberInput } from '../components/NumberInput';
 import { PageHeader } from '../components/PageHeader';
 import { Pagination } from '../components/Pagination';
 import { StockBadge } from '../components/Badge';
@@ -13,9 +14,23 @@ import { useAppStore } from '../store/AppStore';
 import type { Category, Perfume } from '../types';
 import { expectedProfit } from '../utils/calculations';
 import { formatMoney } from '../utils/format';
+import { numberOrZero, type NumberInputValue } from '../utils/numberInput';
 
-const emptyForm = { firmaNomi: '', tovarNomi: '', kategoriya: 'Erkaklar' as Category, hajmiMl: 100, barcode: '', kelishNarxi: 0, sotuvNarxi: 0, qoldiq: 0, minimalQoldiq: 3, rasm: 'https://images.unsplash.com/photo-1541643600914-78b084683601?auto=format&fit=crop&w=300&q=80' };
-type FormState = typeof emptyForm & { id?: string };
+type FormState = {
+  id?: string;
+  firmaNomi: string;
+  tovarNomi: string;
+  kategoriya: Category;
+  hajmiMl: NumberInputValue;
+  barcode: string;
+  kelishNarxi: NumberInputValue;
+  sotuvNarxi: NumberInputValue;
+  qoldiq: NumberInputValue;
+  minimalQoldiq: NumberInputValue;
+  rasm: string;
+};
+
+const emptyForm: FormState = { firmaNomi: '', tovarNomi: '', kategoriya: 'Erkaklar', hajmiMl: 100, barcode: '', kelishNarxi: '', sotuvNarxi: '', qoldiq: '', minimalQoldiq: 3, rasm: 'https://images.unsplash.com/photo-1541643600914-78b084683601?auto=format&fit=crop&w=300&q=80' };
 
 export function PerfumesPage() {
   const { data, savePerfume, deletePerfume } = useAppStore();
@@ -55,10 +70,18 @@ export function PerfumesPage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    const payload = {
+      ...form,
+      hajmiMl: numberOrZero(form.hajmiMl),
+      kelishNarxi: numberOrZero(form.kelishNarxi),
+      sotuvNarxi: numberOrZero(form.sotuvNarxi),
+      qoldiq: numberOrZero(form.qoldiq),
+      minimalQoldiq: numberOrZero(form.minimalQoldiq),
+    };
     if (!form.firmaNomi.trim() || !form.tovarNomi.trim() || !form.barcode.trim()) return showToast('Majburiy maydonlarni to‘ldiring.', 'warning');
-    if (form.kelishNarxi <= 0 || form.sotuvNarxi <= 0 || form.sotuvNarxi < form.kelishNarxi) return showToast('Narxlarni to‘g‘ri kiriting.', 'warning');
+    if (payload.hajmiMl <= 0 || payload.kelishNarxi <= 0 || payload.sotuvNarxi <= 0 || payload.sotuvNarxi < payload.kelishNarxi || payload.qoldiq < 0 || payload.minimalQoldiq < 0) return showToast('Narxlarni to‘g‘ri kiriting.', 'warning');
     setSaving(true);
-    const result = await savePerfume(form);
+    const result = await savePerfume(payload);
     setSaving(false);
     if (!result.ok) return showToast(result.message, 'error');
     showToast(form.id ? 'Parfyum yangilandi.' : 'Parfyum qo‘shildi.'); setOpen(false); setForm(emptyForm);
@@ -140,13 +163,13 @@ export function PerfumesPage() {
         <div><label className="label">Firma nomi *</label><input className="input" value={form.firmaNomi} onChange={(e) => setForm({...form, firmaNomi:e.target.value})} /></div>
         <div><label className="label">Tovar nomi *</label><input className="input" value={form.tovarNomi} onChange={(e) => setForm({...form, tovarNomi:e.target.value})} /></div>
         <div><label className="label">Kategoriya</label><select className="input" value={form.kategoriya} onChange={(e) => setForm({...form, kategoriya:e.target.value as Category})}><option>Erkaklar</option><option>Ayollar</option><option>Unisex</option></select></div>
-        <div><label className="label">Hajmi (ml)</label><input className="input" type="number" onFocus={(e) => e.target.select()} min="1" value={form.hajmiMl} onChange={(e) => setForm({...form, hajmiMl:Number(e.target.value)})} /></div>
+        <div><label className="label">Hajmi (ml)</label><NumberInput min="1" value={form.hajmiMl} onValueChange={(value) => setForm({...form, hajmiMl:value})} /></div>
         <div><label className="label">Barcode *</label><div className="flex gap-2"><input className="input" value={form.barcode} onChange={(e) => setForm({...form, barcode:e.target.value})} /><button type="button" className="btn-secondary shrink-0 !px-3" title="Kamera bilan skanerlash" onClick={() => setScannerOpen(true)}><QrCode size={18} /></button></div></div>
         <div><label className="label">Rasm URL</label><input className="input" value={form.rasm} onChange={(e) => setForm({...form, rasm:e.target.value})} /></div>
-        <div><label className="label">Kelish narxi</label><input className="input" type="number" onFocus={(e) => e.target.select()} min="0" value={form.kelishNarxi} onChange={(e) => setForm({...form, kelishNarxi:Number(e.target.value)})} /></div>
-        <div><label className="label">Sotuv narxi</label><input className="input" type="number" onFocus={(e) => e.target.select()} min="0" value={form.sotuvNarxi} onChange={(e) => setForm({...form, sotuvNarxi:Number(e.target.value)})} /></div>
-        <div><label className="label">Astatka</label><input className="input disabled:cursor-not-allowed disabled:opacity-60" type="number" onFocus={(e) => e.target.select()} min="0" value={form.qoldiq} disabled={Boolean(form.id)} onChange={(e) => setForm({...form, qoldiq:Number(e.target.value)})} />{form.id && <p className="mt-1 text-xs text-slate-400">Qoldiq faqat Tovar kirimi yoki Sotuv orqali o‘zgaradi.</p>}</div>
-        <div><label className="label">Minimal qoldiq</label><input className="input" type="number" onFocus={(e) => e.target.select()} min="0" value={form.minimalQoldiq} onChange={(e) => setForm({...form, minimalQoldiq:Number(e.target.value)})} /></div>
+        <div><label className="label">Kelish narxi</label><NumberInput min="0" value={form.kelishNarxi} onValueChange={(value) => setForm({...form, kelishNarxi:value})} /></div>
+        <div><label className="label">Sotuv narxi</label><NumberInput min="0" value={form.sotuvNarxi} onValueChange={(value) => setForm({...form, sotuvNarxi:value})} /></div>
+        <div><label className="label">Astatka</label><NumberInput className="input disabled:cursor-not-allowed disabled:opacity-60" min="0" value={form.qoldiq} disabled={Boolean(form.id)} onValueChange={(value) => setForm({...form, qoldiq:value})} />{form.id && <p className="mt-1 text-xs text-slate-400">Qoldiq faqat Tovar kirimi yoki Sotuv orqali o‘zgaradi.</p>}</div>
+        <div><label className="label">Minimal qoldiq</label><NumberInput min="0" value={form.minimalQoldiq} onValueChange={(value) => setForm({...form, minimalQoldiq:value})} /></div>
         <div className="sm:col-span-2 flex justify-end gap-3 pt-2"><button type="button" className="btn-secondary" onClick={() => setOpen(false)} disabled={saving}>Bekor qilish</button><button className="btn-primary" disabled={saving}>{saving ? 'Saqlanmoqda...' : 'Saqlash'}</button></div>
       </form></Modal>
       <ConfirmDialog open={Boolean(deleteId)} message="Parfyumni o‘chirishni tasdiqlaysizmi? Tarixiy operatsiyasi mavjud mahsulot o‘chirilmaydi." onClose={() => setDeleteId(null)} onConfirm={remove} loading={deleting} />

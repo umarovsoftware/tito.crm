@@ -5,6 +5,7 @@ import { BarcodeScannerModal } from '../components/BarcodeScannerModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { EmptyState } from '../components/EmptyState';
 import { Modal } from '../components/Modal';
+import { NumberInput } from '../components/NumberInput';
 import { PageHeader } from '../components/PageHeader';
 import { SearchSelect } from '../components/SearchSelect';
 import { useToast } from '../components/Toast';
@@ -12,9 +13,19 @@ import { useAppStore } from '../store/AppStore';
 import type { StockIn } from '../types';
 import { today } from '../utils/date';
 import { formatDate, formatMoney } from '../utils/format';
+import { numberOrZero, type NumberInputValue } from '../utils/numberInput';
 
-const initial = { perfumeId: '', miqdor: 1, kelishNarxi: 0, yetkazibBeruvchi: '', sana: today(), izoh: '' };
-type FormState = typeof initial & { id?: string };
+type FormState = {
+  id?: string;
+  perfumeId: string;
+  miqdor: NumberInputValue;
+  kelishNarxi: NumberInputValue;
+  yetkazibBeruvchi: string;
+  sana: string;
+  izoh: string;
+};
+
+const initial: FormState = { perfumeId: '', miqdor: 1, kelishNarxi: '', yetkazibBeruvchi: '', sana: today(), izoh: '' };
 
 export function StockInPage() {
   const { data, saveStockIn, deleteStockIn } = useAppStore();
@@ -36,14 +47,15 @@ export function StockInPage() {
   const product = data.perfumes.find((item) => item.id === form.perfumeId);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!form.perfumeId || form.miqdor <= 0 || form.kelishNarxi <= 0 || !form.yetkazibBeruvchi.trim()) return showToast('Barcha majburiy maydonlarni to‘g‘ri kiriting.', 'warning');
+    const payload = { ...form, miqdor: numberOrZero(form.miqdor), kelishNarxi: numberOrZero(form.kelishNarxi) };
+    if (!form.perfumeId || payload.miqdor <= 0 || payload.kelishNarxi <= 0 || !form.yetkazibBeruvchi.trim()) return showToast('Barcha majburiy maydonlarni to‘g‘ri kiriting.', 'warning');
     setSaving(true);
-    const result = await saveStockIn(form);
+    const result = await saveStockIn(payload);
     setSaving(false);
     if (!result.ok) return showToast(result.message, 'error');
     showToast(form.id ? 'Tovar kirimi yangilandi.' : 'Tovar kirimi saqlandi. Qoldiq oshirildi.'); setOpen(false); setForm(initial);
   };
-  const startAdd = () => { const first = data.perfumes[0]; setForm({ ...initial, perfumeId: first?.id ?? '', kelishNarxi: first?.kelishNarxi ?? 0 }); setOpen(true); };
+  const startAdd = () => { const first = data.perfumes[0]; setForm({ ...initial, perfumeId: first?.id ?? '', kelishNarxi: first?.kelishNarxi ?? '' }); setOpen(true); };
   const edit = (item: StockIn) => { const { createdAt: _createdAt, ...rest } = item; setForm(rest); setOpen(true); };
   const remove = async () => {
     if (!deleteId) return;
@@ -83,11 +95,11 @@ export function StockInPage() {
     </div>
     <Modal open={open} title={form.id?'Tovar kirimini tahrirlash':'Yangi tovar kirimi'} onClose={()=>setOpen(false)}><form onSubmit={submit} className="space-y-4">
       <div><label className="label">Parfyumni tanlash *</label><div className="flex gap-2"><div className="flex-1"><SearchSelect value={form.perfumeId} onChange={(perfumeId)=>{const p=data.perfumes.find(x=>x.id===perfumeId);setForm({...form,perfumeId,kelishNarxi:p?.kelishNarxi??0})}} options={data.perfumes.map((p)=>({value:p.id,label:`${p.firmaNomi} ${p.tovarNomi}`,sublabel:`qoldiq ${p.qoldiq}`}))} placeholder="Tanlang" /></div><button type="button" className="btn-secondary shrink-0 !px-3" title="Kamera bilan skanerlash" onClick={() => setScannerOpen(true)}><QrCode size={18} /></button></div></div>
-      <div className="grid gap-4 sm:grid-cols-2"><div><label className="label">Miqdor *</label><input className="input" type="number" onFocus={(e) => e.target.select()} min="1" value={form.miqdor} onChange={(e)=>setForm({...form,miqdor:Number(e.target.value)})}/></div><div><label className="label">Kelish narxi *</label><input className="input" type="number" onFocus={(e) => e.target.select()} min="1" value={form.kelishNarxi} onChange={(e)=>setForm({...form,kelishNarxi:Number(e.target.value)})}/></div></div>
+      <div className="grid gap-4 sm:grid-cols-2"><div><label className="label">Miqdor *</label><NumberInput min="1" value={form.miqdor} onValueChange={(value)=>setForm({...form,miqdor:value})}/></div><div><label className="label">Kelish narxi *</label><NumberInput min="1" value={form.kelishNarxi} onValueChange={(value)=>setForm({...form,kelishNarxi:value})}/></div></div>
       <div><label className="label">Firma yoki yetkazib beruvchi *</label><input className="input" value={form.yetkazibBeruvchi} onChange={(e)=>setForm({...form,yetkazibBeruvchi:e.target.value})}/></div>
       <div><label className="label">Sana *</label><input className="input" type="date" value={form.sana} onChange={(e)=>setForm({...form,sana:e.target.value})}/></div>
       <div><label className="label">Izoh</label><textarea className="input min-h-24" value={form.izoh} onChange={(e)=>setForm({...form,izoh:e.target.value})}/></div>
-      {product&&<div className="rounded-2xl bg-blue-50 p-4 text-sm dark:bg-blue-950/30"><div className="flex justify-between"><span>Joriy qoldiq</span><b>{product.qoldiq} dona</b></div><div className="mt-2 flex justify-between"><span>Kirim summasi</span><b>{money(form.miqdor*form.kelishNarxi)}</b></div></div>}
+      {product&&<div className="rounded-2xl bg-blue-50 p-4 text-sm dark:bg-blue-950/30"><div className="flex justify-between"><span>Joriy qoldiq</span><b>{product.qoldiq} dona</b></div><div className="mt-2 flex justify-between"><span>Kirim summasi</span><b>{money(numberOrZero(form.miqdor)*numberOrZero(form.kelishNarxi))}</b></div></div>}
       <div className="flex justify-end gap-3"><button type="button" className="btn-secondary" onClick={()=>setOpen(false)} disabled={saving}>Bekor qilish</button><button className="btn-primary" disabled={saving}>{saving ? 'Saqlanmoqda...' : 'Saqlash'}</button></div>
     </form></Modal>
     <ConfirmDialog open={Boolean(deleteId)} message="Kirim o‘chirilsa, mahsulot qoldig‘i va unga bog‘liq chiqim ham kamayadi." onClose={()=>setDeleteId(null)} onConfirm={remove} loading={deleting}/>
