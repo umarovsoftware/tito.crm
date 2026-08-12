@@ -4,6 +4,17 @@ from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
+from .roles import ROLE_CHOICES, CASHIER
+
+
+class Profile(models.Model):
+    """Extends the built-in Django User with a business role. Superusers don't need one —
+    `is_superuser` already grants full access and bypasses the role matrix."""
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=CASHIER)
+
+    def __str__(self):
+        return f"{self.user.username} ({self.get_role_display()})"
 
 
 class TimeStampedModel(models.Model):

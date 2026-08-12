@@ -9,7 +9,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import ActivityLog, Customer, CustomerDebt, CustomerDebtEntry, Expense, Income, Payable, PayableEntry, Product, Sale, SaleItem, ShopSettings, StockReceipt
-from .permissions import IsSuperUser
+from .permissions import IsSuperUser, ModulePermission
 from .serializers import (
     ActivityLogSerializer, CustomerDebtSerializer, CustomerSerializer, EmployeeSerializer, ExpenseSerializer,
     IncomeSerializer, PayableSerializer, PaymentSerializer, ProductSerializer, SaleSerializer,
@@ -64,6 +64,8 @@ class ProductViewSet(AuditedModelViewSet):
     search_fields = ("brand_name", "name", "barcode")
     ordering_fields = ("brand_name", "name", "quantity", "created_at")
     protected_error_message = "Bu mahsulotda operatsiyalar bor, uni o'chirib bo'lmaydi."
+    permission_classes = [ModulePermission]
+    module = "perfumes"
 
 
 class CustomerViewSet(AuditedModelViewSet):
@@ -71,6 +73,8 @@ class CustomerViewSet(AuditedModelViewSet):
     serializer_class = CustomerSerializer
     search_fields = ("full_name", "phone")
     protected_error_message = "Savdo yoki qarz tarixi mavjud mijozni o'chirib bo'lmaydi."
+    permission_classes = [ModulePermission]
+    module = "customers"
 
     @action(detail=True, methods=["get"])
     def debt(self, request, pk=None):
@@ -86,6 +90,8 @@ class DebtViewSet(AuditedModelViewSet):
     queryset = CustomerDebt.objects.select_related("customer").prefetch_related("entries")
     serializer_class = CustomerDebtSerializer
     http_method_names = ["get", "post", "patch", "head", "options"]
+    permission_classes = [ModulePermission]
+    module = "debts"
 
     @action(detail=True, methods=["post"], url_path="payment")
     @transaction.atomic
@@ -115,6 +121,8 @@ class StockReceiptViewSet(AuditedModelViewSet):
     queryset = StockReceipt.objects.select_related("product")
     serializer_class = StockReceiptSerializer
     http_method_names = ["get", "post", "put", "patch", "delete", "head", "options"]
+    permission_classes = [ModulePermission]
+    module = "stock_ins"
 
     @transaction.atomic
     def perform_destroy(self, instance):
@@ -133,6 +141,8 @@ class SaleViewSet(AuditedModelViewSet):
     serializer_class = SaleSerializer
     http_method_names = ["get", "post", "put", "patch", "delete", "head", "options"]
     search_fields = ("code", "guest_code", "customer__full_name", "items__product__name")
+    permission_classes = [ModulePermission]
+    module = "sales"
 
     @transaction.atomic
     def perform_destroy(self, instance):
@@ -157,6 +167,8 @@ class PayableViewSet(AuditedModelViewSet):
     queryset = Payable.objects.all()
     serializer_class = PayableSerializer
     search_fields = ("supplier", "phone")
+    permission_classes = [ModulePermission]
+    module = "payables"
 
     def perform_destroy(self, instance):
         payment_ids = list(instance.entries.filter(entry_type="payment").values_list("id", flat=True))
@@ -191,6 +203,8 @@ class IncomeViewSet(AuditedModelViewSet):
     queryset = Income.objects.all()
     serializer_class = IncomeSerializer
     search_fields = ("category", "note")
+    permission_classes = [ModulePermission]
+    module = "incomes"
 
     def perform_update(self, serializer):
         if serializer.instance.source:
@@ -209,6 +223,8 @@ class ExpenseViewSet(AuditedModelViewSet):
     queryset = Expense.objects.all()
     serializer_class = ExpenseSerializer
     search_fields = ("category", "note")
+    permission_classes = [ModulePermission]
+    module = "expenses"
 
     def perform_update(self, serializer):
         if serializer.instance.source:
@@ -225,7 +241,7 @@ class ExpenseViewSet(AuditedModelViewSet):
 
 class EmployeeViewSet(AuditedModelViewSet):
     """Super admin manages employee (hodim) accounts here — logins/passwords are never self-serve."""
-    queryset = User.objects.filter(is_superuser=False).order_by("-date_joined")
+    queryset = User.objects.filter(is_superuser=False).select_related("profile").order_by("-date_joined")
     serializer_class = EmployeeSerializer
     permission_classes = [IsSuperUser]
     http_method_names = ["get", "post", "patch", "delete", "head", "options"]
@@ -246,6 +262,9 @@ class ActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class SettingsView(APIView):
+    permission_classes = [ModulePermission]
+    module = "settings"
+
     def get_object(self):
         return ShopSettings.objects.get_or_create(pk=1)[0]
 
@@ -261,6 +280,9 @@ class SettingsView(APIView):
 
 
 class DashboardView(APIView):
+    permission_classes = [ModulePermission]
+    module = "dashboard"
+
     def get(self, request):
         today = timezone.localdate()
         start = request.query_params.get("start")

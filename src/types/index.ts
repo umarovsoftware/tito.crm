@@ -1,3 +1,4 @@
+export type Role = 'manager' | 'accountant' | 'warehouse' | 'cashier';
 export type Category = 'Erkaklar' | 'Ayollar' | 'Unisex';
 export type PaymentType = 'Naqd' | 'Karta' | 'O‘tkazma' | 'Qarz';
 export type SaleType = 'Doimiy mijoz' | 'Tasodifiy xaridor';
@@ -145,6 +146,7 @@ export interface Employee {
   familiya: string;
   email: string;
   faol: boolean;
+  rol: Role;
   createdAt: string;
 }
 

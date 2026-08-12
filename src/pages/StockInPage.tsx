@@ -10,6 +10,7 @@ import { PageHeader } from '../components/PageHeader';
 import { SearchSelect } from '../components/SearchSelect';
 import { useToast } from '../components/Toast';
 import { useAppStore } from '../store/AppStore';
+import { useHidScanner } from '../hooks/useHidScanner';
 import type { StockIn } from '../types';
 import { today } from '../utils/date';
 import { formatDate, formatMoney } from '../utils/format';
@@ -71,6 +72,7 @@ export function StockInPage() {
     setForm((current) => ({ ...current, perfumeId: match.id, kelishNarxi: match.kelishNarxi }));
     showToast(`${match.firmaNomi} ${match.tovarNomi} tanlandi.`);
   };
+  useHidScanner(open, handleScanned);
 
   return <div>
     <PageHeader title="Tovar kirimi" description="Yetkazib beruvchidan kelgan mahsulotlarni omborga kiriting." actions={<div className="flex flex-wrap gap-2"><button className="btn-secondary" onClick={() => navigate('/ombor')}><ArrowLeft size={18}/> Omborga qaytish</button><button className="btn-primary" onClick={startAdd}><Plus size={18}/> Tovar kirimi</button></div>} />

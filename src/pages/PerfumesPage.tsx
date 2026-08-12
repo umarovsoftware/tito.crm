@@ -11,6 +11,7 @@ import { Pagination } from '../components/Pagination';
 import { StockBadge } from '../components/Badge';
 import { useToast } from '../components/Toast';
 import { useAppStore } from '../store/AppStore';
+import { useHidScanner } from '../hooks/useHidScanner';
 import type { Category, Perfume } from '../types';
 import { expectedProfit } from '../utils/calculations';
 import { formatMoney } from '../utils/format';
@@ -67,6 +68,8 @@ export function PerfumesPage() {
   const rows = filtered.slice((page - 1) * pageSize, page * pageSize);
   const setSorting = (key: keyof Perfume) => setSort((current) => ({ key, dir: current.key === key && current.dir === 'asc' ? 'desc' : 'asc' }));
   const sortIcon = (key: keyof Perfume) => sort.key === key ? (sort.dir === 'asc' ? <ArrowDownAZ size={15} /> : <ArrowUpAZ size={15} />) : null;
+  const handleScanned = (code: string) => { setForm((current) => ({ ...current, barcode: code })); showToast('Barcode o‘qildi.'); };
+  useHidScanner(open, handleScanned);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -173,7 +176,7 @@ export function PerfumesPage() {
         <div className="sm:col-span-2 flex justify-end gap-3 pt-2"><button type="button" className="btn-secondary" onClick={() => setOpen(false)} disabled={saving}>Bekor qilish</button><button className="btn-primary" disabled={saving}>{saving ? 'Saqlanmoqda...' : 'Saqlash'}</button></div>
       </form></Modal>
       <ConfirmDialog open={Boolean(deleteId)} message="Parfyumni o‘chirishni tasdiqlaysizmi? Tarixiy operatsiyasi mavjud mahsulot o‘chirilmaydi." onClose={() => setDeleteId(null)} onConfirm={remove} loading={deleting} />
-      <BarcodeScannerModal open={scannerOpen} onClose={() => setScannerOpen(false)} onDetected={(code) => { setForm((current) => ({ ...current, barcode: code })); showToast('Barcode o‘qildi.'); }} />
+      <BarcodeScannerModal open={scannerOpen} onClose={() => setScannerOpen(false)} onDetected={handleScanned} />
     </div>
   );
 }

@@ -1,12 +1,13 @@
 from decimal import Decimal
 from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase
-from .models import ActivityLog, Expense, Income, Product
+from .models import ActivityLog, Expense, Income, Product, Profile
 
 
 class StoreApiTests(APITestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="tester", password="strong-pass-123")
+        Profile.objects.create(user=self.user, role="manager")
         self.client.force_authenticate(user=self.user)
         self.product = Product.objects.create(
             brand_name="Dior", name="Sauvage", category="men", volume_ml=100,
@@ -117,6 +118,7 @@ class EmployeeAndActivityLogTests(APITestCase):
     def setUp(self):
         self.admin = get_user_model().objects.create_superuser(username="boss", password="super-secret-1", email="boss@example.com")
         self.employee = get_user_model().objects.create_user(username="hodim1", password="hodim-pass-1")
+        Profile.objects.create(user=self.employee, role="manager")
 
     def test_only_super_admin_can_manage_employees(self):
         self.client.force_authenticate(user=self.employee)

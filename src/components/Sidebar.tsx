@@ -2,30 +2,35 @@ import { BarChart3, Boxes, ChevronLeft, CircleDollarSign, CreditCard, History, L
 import { NavLink } from 'react-router-dom';
 import { useAppStore } from '../store/AppStore';
 import { useAuth } from '../auth/AuthContext';
+import { can, type Module } from '../auth/roles';
 
-const items = [
-  { label: 'Dashboard', path: '/', icon: LayoutDashboard },
-  { label: 'Parfyumlar', path: '/parfyumlar', icon: Boxes },
-  { label: 'Sotuvlar', path: '/sotuvlar', icon: ShoppingCart },
-  { label: 'Kirimlar', path: '/kirimlar', icon: WalletCards },
-  { label: 'Chiqimlar', path: '/chiqimlar', icon: ReceiptText },
-  { label: 'Mijozlar', path: '/mijozlar', icon: Users },
-  { label: 'Qarzdorlar', path: '/qarzdorlar', icon: CircleDollarSign },
-  { label: 'Qarzlarim', path: '/qarzlarim', icon: CreditCard },
-  { label: 'Hisobotlar', path: '/hisobotlar', icon: BarChart3 },
-  { label: 'Ombor', path: '/ombor', icon: PackagePlus },
-  { label: 'Sozlamalar', path: '/sozlamalar', icon: Settings },
+const homeItem = { label: 'Dashboard', path: '/', icon: LayoutDashboard, module: 'dashboard' as Module };
+const cashierHomeItem = { label: 'Sotuv bo‘limi', path: '/sotuv-bolimi', icon: ShoppingCart, module: 'sales' as Module };
+const warehouseHomeItem = { label: 'Ombor xonasi', path: '/ombor-xonasi', icon: PackagePlus, module: 'warehouse' as Module };
+
+const items: { label: string; path: string; icon: typeof Boxes; module: Module }[] = [
+  { label: 'Parfyumlar', path: '/parfyumlar', icon: Boxes, module: 'perfumes' },
+  { label: 'Sotuvlar', path: '/sotuvlar', icon: ShoppingCart, module: 'sales' },
+  { label: 'Kirimlar', path: '/kirimlar', icon: WalletCards, module: 'incomes' },
+  { label: 'Chiqimlar', path: '/chiqimlar', icon: ReceiptText, module: 'expenses' },
+  { label: 'Mijozlar', path: '/mijozlar', icon: Users, module: 'customers' },
+  { label: 'Qarzdorlar', path: '/qarzdorlar', icon: CircleDollarSign, module: 'debts' },
+  { label: 'Qarzlarim', path: '/qarzlarim', icon: CreditCard, module: 'payables' },
+  { label: 'Hisobotlar', path: '/hisobotlar', icon: BarChart3, module: 'reports' },
+  { label: 'Ombor', path: '/ombor', icon: PackagePlus, module: 'warehouse' },
+  { label: 'Sozlamalar', path: '/sozlamalar', icon: Settings, module: 'settings' },
 ];
 
-const adminItems = [
-  { label: 'Hodimlar', path: '/hodimlar', icon: UserCog },
-  { label: 'Loglar', path: '/loglar', icon: History },
+const adminItems: { label: string; path: string; icon: typeof UserCog; module: Module }[] = [
+  { label: 'Hodimlar', path: '/hodimlar', icon: UserCog, module: 'employees' },
+  { label: 'Loglar', path: '/loglar', icon: History, module: 'activity_logs' },
 ];
 
 export function Sidebar({ mobileOpen, onMobileClose, collapsed, onCollapse }: { mobileOpen: boolean; onMobileClose: () => void; collapsed: boolean; onCollapse: () => void }) {
   const { data } = useAppStore();
   const { user } = useAuth();
-  const navItems = user?.is_superuser ? [...items, ...adminItems] : items;
+  const home = user?.role === 'cashier' ? cashierHomeItem : user?.role === 'warehouse' ? warehouseHomeItem : homeItem;
+  const navItems = [home, ...items, ...adminItems].filter((item) => can(user, item.module, 'view'));
   return (
     <>
       {mobileOpen && <button aria-label="Sidebarni yopish" className="fixed inset-0 z-40 bg-slate-950/50 lg:hidden" onClick={onMobileClose} />}

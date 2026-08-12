@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AdminLayout } from './layouts/AdminLayout';
 import { LoginPage } from './pages/LoginPage';
 import { useAuth } from './auth/AuthContext';
+import { can, homePathFor, type Capability, type Module } from './auth/roles';
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const PerfumesPage = lazy(() => import('./pages/PerfumesPage').then((m) => ({ default: m.PerfumesPage })));
@@ -20,14 +21,23 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ de
 const EmployeesPage = lazy(() => import('./pages/EmployeesPage').then((m) => ({ default: m.EmployeesPage })));
 const EmployeeDetailPage = lazy(() => import('./pages/EmployeeDetailPage').then((m) => ({ default: m.EmployeeDetailPage })));
 const ActivityLogPage = lazy(() => import('./pages/ActivityLogPage').then((m) => ({ default: m.ActivityLogPage })));
+const SotuvBolimiPage = lazy(() => import('./pages/SotuvBolimiPage').then((m) => ({ default: m.SotuvBolimiPage })));
+const OmborXonasiPage = lazy(() => import('./pages/OmborXonasiPage').then((m) => ({ default: m.OmborXonasiPage })));
 
 function Loader() {
   return <div className="card grid min-h-64 place-items-center"><div className="text-center"><div className="mx-auto h-9 w-9 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600" /><p className="mt-3 text-sm text-slate-500">Sahifa yuklanmoqda...</p></div></div>;
 }
 
-function AdminRoute({ children }: { children: React.ReactNode }) {
+function RequireModule({ module, action = 'view', children }: { module: Module; action?: Capability; children: React.ReactNode }) {
   const { user } = useAuth();
-  return user?.is_superuser ? <>{children}</> : <Navigate to="/" replace />;
+  return can(user, module, action) ? <>{children}</> : <Navigate to={homePathFor(user)} replace />;
+}
+
+function HomeRoute() {
+  const { user } = useAuth();
+  if (user?.role === 'cashier') return <Navigate to="/sotuv-bolimi" replace />;
+  if (user?.role === 'warehouse') return <Navigate to="/ombor-xonasi" replace />;
+  return <DashboardPage />;
 }
 
 export default function App() {
@@ -37,22 +47,24 @@ export default function App() {
     <Suspense fallback={<Loader />}>
       <Routes>
         <Route element={<AdminLayout />}>
-          <Route index element={<DashboardPage />} />
-          <Route path="parfyumlar" element={<PerfumesPage />} />
-          <Route path="tovar-kirimi" element={<StockInPage />} />
-          <Route path="sotuvlar" element={<SalesPage />} />
-          <Route path="sotuvlar/yangi" element={<NewSalePage />} />
-          <Route path="mijozlar" element={<CustomersPage />} />
-          <Route path="qarzdorlar" element={<DebtorsPage />} />
-          <Route path="qarzlarim" element={<MyDebtsPage />} />
-          <Route path="kirimlar" element={<IncomesPage />} />
-          <Route path="chiqimlar" element={<ExpensesPage />} />
-          <Route path="hisobotlar" element={<ReportsPage />} />
-          <Route path="ombor" element={<WarehousePage />} />
-          <Route path="sozlamalar" element={<SettingsPage />} />
-          <Route path="hodimlar" element={<AdminRoute><EmployeesPage /></AdminRoute>} />
-          <Route path="hodimlar/:id" element={<AdminRoute><EmployeeDetailPage /></AdminRoute>} />
-          <Route path="loglar" element={<AdminRoute><ActivityLogPage /></AdminRoute>} />
+          <Route index element={<HomeRoute />} />
+          <Route path="parfyumlar" element={<RequireModule module="perfumes"><PerfumesPage /></RequireModule>} />
+          <Route path="tovar-kirimi" element={<RequireModule module="stock_ins"><StockInPage /></RequireModule>} />
+          <Route path="sotuvlar" element={<RequireModule module="sales"><SalesPage /></RequireModule>} />
+          <Route path="sotuvlar/yangi" element={<RequireModule module="sales" action="add"><NewSalePage /></RequireModule>} />
+          <Route path="mijozlar" element={<RequireModule module="customers"><CustomersPage /></RequireModule>} />
+          <Route path="qarzdorlar" element={<RequireModule module="debts"><DebtorsPage /></RequireModule>} />
+          <Route path="qarzlarim" element={<RequireModule module="payables"><MyDebtsPage /></RequireModule>} />
+          <Route path="kirimlar" element={<RequireModule module="incomes"><IncomesPage /></RequireModule>} />
+          <Route path="chiqimlar" element={<RequireModule module="expenses"><ExpensesPage /></RequireModule>} />
+          <Route path="hisobotlar" element={<RequireModule module="reports"><ReportsPage /></RequireModule>} />
+          <Route path="ombor" element={<RequireModule module="warehouse"><WarehousePage /></RequireModule>} />
+          <Route path="sozlamalar" element={<RequireModule module="settings"><SettingsPage /></RequireModule>} />
+          <Route path="sotuv-bolimi" element={<RequireModule module="sales"><SotuvBolimiPage /></RequireModule>} />
+          <Route path="ombor-xonasi" element={<RequireModule module="warehouse"><OmborXonasiPage /></RequireModule>} />
+          <Route path="hodimlar" element={<RequireModule module="employees"><EmployeesPage /></RequireModule>} />
+          <Route path="hodimlar/:id" element={<RequireModule module="employees"><EmployeeDetailPage /></RequireModule>} />
+          <Route path="loglar" element={<RequireModule module="activity_logs"><ActivityLogPage /></RequireModule>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

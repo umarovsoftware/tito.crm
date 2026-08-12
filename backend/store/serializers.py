@@ -4,7 +4,8 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
-from .models import ActivityLog, Customer, CustomerDebt, CustomerDebtEntry, Expense, Income, Payable, PayableEntry, Product, Sale, SaleItem, ShopSettings, StockReceipt
+from .models import ActivityLog, Customer, CustomerDebt, CustomerDebtEntry, Expense, Income, Payable, PayableEntry, Product, Profile, Sale, SaleItem, ShopSettings, StockReceipt
+from .roles import MANAGER, ROLE_CHOICES
 
 User = get_user_model()
 
@@ -352,12 +353,19 @@ class EmployeeSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(required=False, allow_blank=True)
     parol = serializers.CharField(source="password", write_only=True, required=False, min_length=8)
     faol = serializers.BooleanField(source="is_active", required=False, default=True)
+    rol = serializers.ChoiceField(choices=ROLE_CHOICES, required=False)
     createdAt = serializers.DateTimeField(source="date_joined", read_only=True)
 
     class Meta:
         model = User
-        fields = ("id", "username", "ism", "familiya", "email", "parol", "faol", "createdAt")
+        fields = ("id", "username", "ism", "familiya", "email", "parol", "faol", "rol", "createdAt")
         read_only_fields = ("id", "createdAt")
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        profile = getattr(instance, "profile", None)
+        data["rol"] = profile.role if profile else MANAGER
+        return data
 
     def validate_username(self, value):
         queryset = User.objects.filter(username=value)
@@ -368,6 +376,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
+        role = validated_data.pop("rol", MANAGER)
         password = validated_data.pop("password", None)
         if not password:
             raise serializers.ValidationError({"parol": "Parol kiritilishi shart."})
@@ -376,14 +385,18 @@ class EmployeeSerializer(serializers.ModelSerializer):
         user.is_superuser = False
         user.set_password(password)
         user.save()
+        Profile.objects.create(user=user, role=role)
         return user
 
     def update(self, instance, validated_data):
+        role = validated_data.pop("rol", None)
         password = validated_data.pop("password", None)
         instance = super().update(instance, validated_data)
         if password:
             instance.set_password(password)
             instance.save(update_fields=["password"])
+        if role:
+            Profile.objects.update_or_create(user=instance, defaults={"role": role})
         return instance
 
 

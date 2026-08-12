@@ -10,6 +10,7 @@ import { NumberInput } from '../components/NumberInput';
 import { SearchSelect } from '../components/SearchSelect';
 import { useToast } from '../components/Toast';
 import { useAppStore } from '../store/AppStore';
+import { useHidScanner } from '../hooks/useHidScanner';
 import type { PaymentType, Sale, SaleType } from '../types';
 import { createInitialSale, getGuestCode, getSaleCode, saleTotal, type SaleFormItem, type SaleFormState } from '../utils/sale';
 import { formatDate, formatMoney } from '../utils/format';
@@ -58,6 +59,9 @@ export function SalesPage() {
     });
     showToast(`${match.firmaNomi} ${match.tovarNomi} qo‘shildi.`);
   };
+  // Mutually exclusive with the list-level quick-scan below: while the edit modal is open, a
+  // physical scan should add an item to it, not trigger the list's "open a new sale" shortcut.
+  useHidScanner(open, handleScanned);
   const total = form.items.reduce((sum, item) => sum + numberOrZero(item.miqdor) * numberOrZero(item.sotuvNarxi), 0);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -78,6 +82,7 @@ export function SalesPage() {
     if (!match) return showToast(`"${code}" barcode bo‘yicha mahsulot topilmadi.`, 'error');
     navigate('/sotuvlar/yangi', { state: { scannedPerfumeId: match.id } });
   };
+  useHidScanner(!open, handleListScan);
 
   return <div>
     <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
@@ -91,7 +96,7 @@ export function SalesPage() {
         <div className="card grid gap-3 p-4 md:grid-cols-[1fr_220px_240px]"><label className="relative self-start"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><input className="input pl-10" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Sotuv ID, mahsulot yoki mijoz..." /></label><select className="input" value={payment} onChange={(event) => setPayment(event.target.value)}><option>Barchasi</option><option>Naqd</option><option>Karta</option><option>O‘tkazma</option><option>Qarz</option></select><select className="input" value={saleTypeFilter} onChange={(event) => setSaleTypeFilter(event.target.value as SaleTypeFilter)}><option>Barchasi</option><option>Doimiy mijoz</option><option>Tasodifiy xaridor</option></select></div>
       </div>
       <div className="h-full xl:sticky xl:top-6">
-        <BarcodeScannerPanel onDetected={handleListScan} title="Tezkor sotuv" description="Mahsulotni skanerlang — yangi sotuv sahifasi ochiladi" fillHeight />
+        <BarcodeScannerPanel onDetected={handleListScan} title="Tezkor sotuv" description="Kamera yoki tashqi skaner bilan o‘qiting — yangi sotuv sahifasi ochiladi" fillHeight />
       </div>
     </div>
     <div className="card mt-6 overflow-hidden">

@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { ActivityLog, AppData, AppSettings, Customer, Employee, Expense, ExpenseCategory, Income, PayableDebt, Perfume, Sale, StockIn } from '../types';
+import type { ActivityLog, AppData, AppSettings, Customer, Employee, Expense, ExpenseCategory, Income, PayableDebt, Perfume, Role, Sale, StockIn } from '../types';
 import { useAuth } from '../auth/AuthContext';
+import { can } from '../auth/roles';
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? 'https://68-183-16-36.nip.io/api').replace(/\/$/, '');
+const API_BASE_URL =(import.meta.env.VITE_API_BASE_URL ?? 'https://68-183-16-36.nip.io/api').replace(/\/$/, '');
 const emptyData: AppData = {
   perfumes: [], customers: [], stockIns: [], sales: [], debts: [], payables: [], incomes: [], expenses: [],
   settings: { dokonNomi: 'Aroma House', telefon: '', manzil: '', valyuta: "so'm", darkMode: false },
@@ -18,7 +19,7 @@ type SaleInput = Omit<Sale, 'id' | 'createdAt' | 'sotuvKodi' | 'xaridorKodi' | '
 type IncomeInput = Omit<Income, 'id' | 'createdAt' | 'sourceId'> & { id?: string };
 type ExpenseInput = Omit<Expense, 'id' | 'createdAt' | 'sourceId'> & { id?: string };
 type PayableInput = { id?: string; yetkazibBeruvchi: string; telefon: string; kategoriya: ExpenseCategory; jamiQarz: number; muddat: string; izoh: string; sana: string };
-type EmployeeInput = { id?: number; username: string; ism: string; familiya: string; email: string; faol: boolean; parol?: string };
+type EmployeeInput = { id?: number; username: string; ism: string; familiya: string; email: string; faol: boolean; rol: Role; parol?: string };
 
 interface AppStoreValue {
   data: AppData;
@@ -85,13 +86,20 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
-    const isSuperAdmin = Boolean(user?.is_superuser);
+    const ifCan = <T,>(module: Parameters<typeof can>[1], fallback: T, fetcher: () => Promise<T>): Promise<T> =>
+      can(user, module, 'view') ? fetcher() : Promise.resolve(fallback);
     const [perfumes, customers, stockIns, sales, debts, payables, incomes, expenses, settings, employees, activityLogs] = await Promise.all([
-      request<Perfume[]>('/perfumes/'), request<Customer[]>('/customers/'), request<StockIn[]>('/stock-ins/'),
-      request<Sale[]>('/sales/'), request<AppData['debts']>('/debts/'), request<PayableDebt[]>('/payables/'),
-      request<Income[]>('/incomes/'), request<Expense[]>('/expenses/'), request<AppSettings>('/settings/'),
-      isSuperAdmin ? request<Employee[]>('/employees/') : Promise.resolve([]),
-      isSuperAdmin ? request<ActivityLog[]>('/activity-logs/') : Promise.resolve([]),
+      ifCan('perfumes', [], () => request<Perfume[]>('/perfumes/')),
+      ifCan('customers', [], () => request<Customer[]>('/customers/')),
+      ifCan('stock_ins', [], () => request<StockIn[]>('/stock-ins/')),
+      ifCan('sales', [], () => request<Sale[]>('/sales/')),
+      ifCan('debts', [], () => request<AppData['debts']>('/debts/')),
+      ifCan('payables', [], () => request<PayableDebt[]>('/payables/')),
+      ifCan('incomes', [], () => request<Income[]>('/incomes/')),
+      ifCan('expenses', [], () => request<Expense[]>('/expenses/')),
+      ifCan('settings', emptyData.settings, () => request<AppSettings>('/settings/')),
+      ifCan('employees', [], () => request<Employee[]>('/employees/')),
+      ifCan('activity_logs', [], () => request<ActivityLog[]>('/activity-logs/')),
     ]);
     setData({ perfumes, customers, stockIns, sales, debts, payables, incomes, expenses, settings, employees, activityLogs });
   }, [user]);

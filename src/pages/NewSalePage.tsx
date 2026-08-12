@@ -7,6 +7,7 @@ import { PageHeader } from '../components/PageHeader';
 import { SearchSelect } from '../components/SearchSelect';
 import { useToast } from '../components/Toast';
 import { useAppStore } from '../store/AppStore';
+import { useHidScanner } from '../hooks/useHidScanner';
 import type { PaymentType, SaleType } from '../types';
 import { createInitialSale, type SaleFormItem, type SaleFormState } from '../utils/sale';
 import { formatMoney } from '../utils/format';
@@ -50,6 +51,7 @@ export function NewSalePage() {
     });
     showToast(`${match.firmaNomi} ${match.tovarNomi} qo‘shildi.`);
   };
+  useHidScanner(true, handleScanned);
   const total = form.items.reduce((sum, item) => sum + numberOrZero(item.miqdor) * numberOrZero(item.sotuvNarxi), 0);
 
   const submit = async (event: FormEvent) => {
@@ -115,7 +117,7 @@ export function NewSalePage() {
           <div className="flex justify-end gap-3"><button type="button" className="btn-secondary" onClick={() => navigate('/sotuvlar')} disabled={saving}>Bekor qilish</button><button className="btn-primary" disabled={saving}>{saving ? 'Saqlanmoqda...' : 'Saqlash'}</button></div>
         </form>
         <div className="xl:sticky xl:top-6">
-          <BarcodeScannerPanel onDetected={handleScanned} description="Mahsulotni tuting — ro‘yxatga avtomatik qo‘shiladi" initialSuppressedCode={initialScannedBarcode} />
+          <BarcodeScannerPanel onDetected={handleScanned} description="Mahsulotni tuting yoki tashqi skaner bilan o‘qiting — ro‘yxatga avtomatik qo‘shiladi" initialSuppressedCode={initialScannedBarcode} />
         </div>
       </div>
     </div>
